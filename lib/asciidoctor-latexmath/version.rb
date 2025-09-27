@@ -6,6 +6,6 @@
 
 module Asciidoctor
   module Latexmath
-    VERSION = '1.0.0-dev.1'
+    VERSION = "1.0.0-dev.1"
   end
 end
