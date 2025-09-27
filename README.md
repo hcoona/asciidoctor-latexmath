@@ -130,10 +130,18 @@ The extension replaces both expressions with rendered images that match the form
 
 | Attribute | Description | Values | Default |
 | --------- | ----------- | ------ | ------- |
-| `latexmath-format` | Desired output format. | `pdf`, `svg`, `png` | `svg` |
-| `latexmath-ppi` | Pixels per inch for PNG output. | Any positive number | `300` |
-| `pdflatex` | Path or command name of the LaTeX engine to invoke. | `pdflatex`, `xelatex`, `lualatex`, `tectonic`, custom path | `pdflatex` |
-| `latexmath-keep-artifacts` | Keep intermediate LaTeX build artifacts for debugging. | `true`, `false` | `false` |
+| `stem` | Enables global stem support. Set to `latexmath` (or `tex`) to make bare `stem:[...]` invocations render through this extension. | `latexmath`, `tex`, etc. | *(not set)* |
+| `latexmath-format` | Desired output format for generated assets. | `pdf`, `svg`, `png` | `svg` |
+| `latexmath-inline` | Embed inline formulas directly into the HTML output instead of linking to image files. Works with `svg` (inline markup) and `png` (data URI). | `true`, `false` | `false` |
+| `latexmath-ppi` | Pixels per inch for PNG rasterization. Ignored for `pdf`/`svg`. | Any positive number | `300` |
+| `latexmath-preamble` | Extra LaTeX preamble inserted before `\begin{document}`. Useful for additional packages or macro definitions. | LaTeX snippet | *(empty)* |
+| `pdflatex` | Command used to compile the temporary LaTeX document. | `pdflatex`, `xelatex`, `lualatex`, `tectonic`, absolute path | `pdflatex` |
+| `latexmath-pdf2svg` | Converter used when `latexmath-format=svg`. Override if your toolchain provides an alternative. | `pdf2svg`, absolute path | `pdf2svg` |
+| `latexmath-png-tool` | Converter used when `latexmath-format=png`. The extension auto-detects `magick`, `convert`, or `pdftoppm`; set this attribute to force a specific command. | Command name or path | *(auto)* |
+| `latexmath-keep-artifacts` | Preserve the generated `.tex`, `.log`, and intermediate PDF files for inspection. | `true`, `false` | `false` |
+| `latexmath-artifacts-dir` | Destination directory for kept artifacts when `latexmath-keep-artifacts=true`. Relative paths are resolved from the document directory. | Path | `imagesoutdir` (or document directory) |
+
+All generated images follow Asciidoctor's standard image directory rules. Set `imagesoutdir` to control where files are written on disk and `imagesdir` to influence how they are referenced from the rendered document. Inline math inside literal table cells is also supported—the extension adds macro substitutions automatically so the rendered `<span class="image">…</span>` markup appears inside the literal block.
 
 Set attributes via the CLI or document header, for example: `-a latexmath-format=png`.
 

@@ -1,0 +1,269 @@
+# frozen_string_literal: true
+
+# SPDX-FileCopyrightText: 2025 Shuai Zhang
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later WITH LGPL-3.0-linking-exception
+
+require 'asciidoctor/extensions'
+require 'fileutils'
+require 'pathname'
+require_relative 'renderer'
+
+module Asciidoctor
+  module Latexmath
+    class Treeprocessor < Asciidoctor::Extensions::Treeprocessor
+      LineFeed = %(
+)
+  StemInlineMacroRx = /\\?(stem|latexmath):([a-z,]*)\[(.*?[^\\])\]/m
+
+      def process(document)
+        return unless needs_processing?(document)
+
+        renderer = Renderer.new(document)
+        image_output_dir, image_target_dir = image_output_and_target_dir(document)
+        context = { renderer: renderer, image_output_dir: image_output_dir, image_target_dir: image_target_dir }
+
+        (document.find_by(context: :stem, traverse_documents: true) || []).dup.each do |stem|
+          handle_stem_block(stem, context)
+        end
+
+        (document.find_by(traverse_documents: true) { |node| prose_candidate?(node) } || []).each do |prose|
+          handle_prose_block(prose, context)
+        end
+
+        (document.find_by(content: :section) || []).each do |section|
+          handle_section_title(section, context)
+        end
+
+        document.remove_attr 'stem'
+        (document.instance_variable_get :@header_attributes)&.delete('stem') rescue nil
+
+        nil
+      end
+
+      private
+
+      def needs_processing?(document)
+        stem_nodes = document.find_by(context: :stem, traverse_documents: true) || []
+        return true if stem_nodes.any? { |stem| latexmath_node?(stem) }
+
+        if (stem_attr = default_stem_style(document))
+          return true if stem_attr == 'latexmath'
+        end
+
+        inline_candidates = document.find_by(traverse_documents: true) { |node| prose_candidate?(node) } || []
+        inline_candidates.any? { |node| contains_inline_stem?(node) }
+      end
+
+      def handle_stem_block(stem, context)
+        return unless latexmath_node?(stem)
+
+        content = extract_block_content(stem)
+        result = render_equation(content, display: true, inline: false, id: stem.id, context: context)
+        return unless result
+
+        parent = stem.parent
+        target, width, height = store_result(result, context)
+        return unless target
+
+        alt_text = stem.attr 'alt', %(#{stem.context == :stem ? stem.source : stem.content})
+        attrs = {
+          'target' => target,
+          'alt' => alt_text,
+          'align' => 'center'
+        }
+        if result.format == :png && width && height
+          attrs['width'] = width.to_i
+          attrs['height'] = height.to_i
+        end
+
+        replacement = create_image_block parent, attrs
+        replacement.id = stem.id if stem.id
+        if (title = stem.attributes['title'])
+          replacement.title = title
+        end
+        index = parent.blocks.index(stem)
+        parent.blocks[index] = replacement if index
+      rescue RenderingError => e
+        warn %(asciidoctor-latexmath: #{e.message})
+      end
+
+      def handle_prose_block(prose, context)
+        use_text_property = %i[list_item table_cell].include?(prose.context)
+        text = if use_text_property
+                 prose.instance_variable_get(:@text)
+               else
+                 (prose.lines || []) * LineFeed
+               end
+
+        updated_text, modified = inline_replace(text, prose, prose.document, context)
+        return unless modified
+
+        if use_text_property
+          prose.text = updated_text
+        else
+          prose.lines = updated_text.split(LineFeed)
+        end
+      end
+
+      def handle_section_title(section, context)
+        text = section.instance_variable_get(:@title)
+        updated_text, modified = inline_replace(text, section, section.document, context)
+        section.title = updated_text if modified
+      end
+
+      def latexmath_node?(node)
+        style = node.style
+        if style
+          style_name = style.to_s
+          return true if %w[latexmath tex].include?(style_name)
+        end
+
+        default_style = default_stem_style(node.document)
+        default_style == 'latexmath'
+      end
+
+      def default_stem_style(document)
+        stem_attr = document.attr('stem')
+        return unless stem_attr
+        value = stem_attr.to_s.split(',').map(&:strip).find { |val| val == 'latexmath' || val == 'tex' }
+        value == 'tex' ? 'latexmath' : value
+      end
+
+      def extract_block_content(stem)
+        case stem.context
+        when :stem
+          stem.content
+        else
+          stem.source
+        end
+      end
+
+      def render_equation(content, display:, inline:, id: nil, context:)
+        context[:renderer].render(equation: normalize_equation(content), display: display, inline: inline, id: id)
+      rescue RenderingError => e
+        warn %(asciidoctor-latexmath: #{e.message})
+        nil
+      end
+
+      def normalize_equation(content)
+        content.strip
+      end
+
+      def store_result(result, context)
+        return [nil, nil, nil] unless result.data
+
+        image_output_dir = context[:image_output_dir]
+        image_target_dir = context[:image_target_dir]
+
+        FileUtils.mkdir_p(image_output_dir) unless File.directory?(image_output_dir)
+        filename = "#{result.basename}.#{result.extension}"
+        output_path = ::File.join(image_output_dir, filename)
+        ::File.binwrite(output_path, result.data)
+
+        target = if image_target_dir == '.'
+                   filename
+                 else
+                   ::File.join(image_target_dir, filename)
+                 end
+
+        [target, result.width, result.height]
+      end
+
+      def inline_replace(text, node, document, context)
+        return [text, false] unless text && !text.empty?
+
+        modified = false
+        default_style = default_stem_style(document) || 'latexmath'
+
+        new_text = text.gsub(StemInlineMacroRx) do
+          match = Regexp.last_match
+          escaped = match[0].start_with?('\\')
+          if escaped
+            match[0][1..-1]
+          else
+            macro = match[1]
+            subs = match[2]
+            equation = match[3].rstrip
+            next '' if equation.empty?
+
+            style = macro == 'stem' ? default_style : 'latexmath'
+            unless style == 'latexmath'
+              match[0]
+            else
+              inline_subs = subs.nil? || subs.empty? ? [] : node.resolve_pass_subs(subs)
+              equation = node.apply_subs(equation, inline_subs) unless inline_subs.empty?
+              result = render_equation(equation, display: false, inline: true, context: context)
+              next match[0] unless result
+
+              modified = true
+
+                if result.inline_markup
+                ensure_macros_substitution(node)
+                %(pass:[#{result.inline_markup}])
+              else
+                target, width, height = store_result(result, context)
+                next match[0] unless target
+                attrs = []
+                attrs << %(width=#{width.to_i}) if width
+                attrs << %(height=#{height.to_i}) if height
+                attr_text = attrs.join(',')
+                ensure_macros_substitution(node)
+                %(image:#{target}[#{attr_text}])
+              end
+            end
+          end
+        end
+
+        [new_text, modified]
+      end
+
+      def prose_candidate?(node)
+        (node.content_model == :simple && node.subs.include?(:macros)) || %i[list_item table_cell].include?(node.context)
+      end
+
+      def contains_inline_stem?(node)
+        text = if node.context == :list_item || node.context == :table_cell
+                 node.instance_variable_get(:@text)
+               else
+                 (node.lines || []) * LineFeed
+               end
+        text && text =~ StemInlineMacroRx
+      end
+
+      def ensure_macros_substitution(node)
+        return unless node.respond_to?(:subs)
+
+        subs = node.subs
+        if subs.nil?
+          node.instance_variable_set(:@subs, [:macros])
+        elsif subs.include?(:macros)
+          # already enabled
+        else
+          updated = subs.dup
+          updated << :macros
+          node.instance_variable_set(:@subs, updated)
+        end
+      end
+
+      def image_output_and_target_dir(doc)
+        output_dir = doc.attr('imagesoutdir')
+        if output_dir
+          if doc.attr('imagesdir').nil_or_empty?
+            target_dir = output_dir
+          else
+            abs_imagesdir = ::Pathname.new doc.normalize_system_path(doc.attr('imagesdir'))
+            abs_outdir = ::Pathname.new doc.normalize_system_path(output_dir)
+            target_dir = abs_outdir.relative_path_from(abs_imagesdir).to_s
+          end
+        else
+          output_dir = doc.attr('imagesdir') || '.'
+          target_dir = '.'
+        end
+
+        output_dir = doc.normalize_system_path(output_dir, doc.attr('docdir'))
+        [output_dir, target_dir]
+      end
+    end
+  end
+end
