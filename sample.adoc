@@ -68,3 +68,13 @@ l| This is an *inline* equation: latexmath:[a^2+b^2=c^2].
 === Proof of stem:[a^2+b^2=c^2]
 
 ==== Proof of stem:[a^2+b^2=c^2]
+
+== LaTeX environments
+
+[latexmath]
+++++
+\begin{gather*}
+  \alpha_a :: F a \to G a \\
+  \alpha_b :: F b \to G b
+\end{gather*}
+++++

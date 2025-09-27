@@ -108,7 +108,13 @@ module Asciidoctor
       end
 
       def build_document(equation, display)
-        body = display ? "\\[#{equation}\\]" : "\\(#{equation}\\)"
+        body = if latex_environment?(equation)
+          equation
+        elsif display
+          "\\[#{equation}\\]"
+        else
+          "\\(#{equation}\\)"
+        end
 
         LATEX_TEMPLATE
           .sub("%<PREAMBLE>", (@preamble ? "\n#{@preamble}\n" : ""))
@@ -282,6 +288,10 @@ module Asciidoctor
         else
           !%w[false off no 0].include?(value.to_s.downcase)
         end
+      end
+
+      def latex_environment?(equation)
+        equation.match?(/\\begin\s*\{[^}]+\}/) && equation.match?(/\\end\s*\{[^}]+\}/)
       end
     end
   end
