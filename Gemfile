@@ -6,11 +6,11 @@
 
 source "https://rubygems.org"
 
-ruby "~> 3.3"
+ruby "~> 3.2"
 
 gem "asciidoctor", ">= 2.0", "< 3.0"
 
 group :development do
-  gem "rake", "~> 13.2"
-  gem "rspec", "~> 3.12"
+  gem "rake", "~> 13.0"
+  gem "rspec", "~> 3.13"
 end
