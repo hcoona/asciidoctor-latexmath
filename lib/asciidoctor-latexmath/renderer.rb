@@ -124,8 +124,8 @@ module Asciidoctor
         end
 
         LATEX_TEMPLATE
-          .sub("%<PREAMBLE>", (@preamble ? "\n#{@preamble}\n" : ""))
-          .sub("%<BODY>", body)
+          .sub("%<PREAMBLE>") { @preamble ? "\n#{@preamble}\n" : "" }
+          .sub("%<BODY>") { body }
       end
 
       def run_pdflatex(tex_path, dir, latex_source:, asciidoc_source: nil, source_location: nil)

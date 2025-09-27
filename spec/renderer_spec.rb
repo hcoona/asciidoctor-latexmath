@@ -60,5 +60,22 @@ RSpec.describe Asciidoctor::Latexmath::Renderer do
       expect(latex_document).to include("\\begin{aligned}")
       expect(latex_document).not_to include("\\(")
     end
+
+    it "preserves double backslashes within latex environments" do
+      equation = <<~LATEX.strip
+        \\begin{gather*}
+        a \\to \\mathbf{C}(L a, b) \\\\
+        a \\to \\mathbf{D}(a, R b)
+        \\end{gather*}
+      LATEX
+
+      latex_document = renderer.send(:build_document, equation, true)
+
+      expected_line = <<~'LINE'
+        a \to \mathbf{C}(L a, b) \\
+      LINE
+      expect(latex_document).to include(expected_line)
+      expect(latex_document).to include("a \\to \\mathbf{D}(a, R b)")
+    end
   end
 end
