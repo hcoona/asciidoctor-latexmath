@@ -51,7 +51,7 @@ module Asciidoctor
         @preamble = document.attr("latexmath-preamble")
       end
 
-      def render(equation:, display:, inline: false, id: nil)
+      def render(equation:, display:, inline: false, id: nil, asciidoc_source: nil, source_location: nil)
         basename = sanitize_basename(id) || auto_basename(equation)
         inline_embed = inline && @inline_attribute
 
@@ -59,8 +59,15 @@ module Asciidoctor
           tex_path = File.join(dir, "#{basename}.tex")
           pdf_path = File.join(dir, "#{basename}.pdf")
 
-          File.write(tex_path, build_document(equation, display))
-          run_pdflatex(tex_path, dir)
+          latex_source = build_document(equation, display)
+          File.write(tex_path, latex_source)
+          run_pdflatex(
+            tex_path,
+            dir,
+            latex_source: latex_source,
+            asciidoc_source: asciidoc_source,
+            source_location: source_location
+          )
 
           unless File.exist?(pdf_path)
             raise RenderingError, "pdflatex did not produce #{basename}.pdf"
@@ -121,7 +128,7 @@ module Asciidoctor
           .sub("%<BODY>", body)
       end
 
-      def run_pdflatex(tex_path, dir)
+      def run_pdflatex(tex_path, dir, latex_source:, asciidoc_source: nil, source_location: nil)
         command = [
           @pdf_engine,
           "-interaction=nonstopmode",
@@ -134,14 +141,18 @@ module Asciidoctor
 
         execute(command, work_dir: dir)
       rescue RenderingError => e
-        latex_source = File.read(tex_path, mode: "r:UTF-8")
-        message = <<~MSG
-          #{e.message.rstrip}
+        latex_source ||= File.read(tex_path, mode: "r:UTF-8")
+        message_parts = [e.message.rstrip]
 
-          LaTeX source (#{tex_path}):
-          #{latex_source}
-        MSG
-        raise RenderingError, message
+        message_parts << "LaTeX source (#{tex_path}):\n#{latex_source}"
+
+        if asciidoc_source
+          location_hint = format_source_location(source_location)
+          header = "Asciidoc source#{location_hint}:"
+          message_parts << "#{header}\n#{asciidoc_source}"
+        end
+
+        raise RenderingError, message_parts.join("\n\n")
       end
 
       def handle_pdf(pdf_path, dir, basename, inline_embed)
@@ -276,6 +287,27 @@ module Asciidoctor
           end
         end
         nil
+      end
+
+      def format_source_location(source_location)
+        return "" unless source_location
+
+        file = if source_location.respond_to?(:file)
+          source_location.file
+        elsif source_location.respond_to?(:path)
+          source_location.path
+        elsif source_location.respond_to?(:filename)
+          source_location.filename
+        end
+
+        line = if source_location.respond_to?(:lineno)
+          source_location.lineno
+        end
+
+        parts = []
+        parts << file if file && !file.to_s.empty?
+        parts << line if line
+        parts.empty? ? "" : " (#{parts.join(':')})"
       end
 
       def truthy_attr?(name)

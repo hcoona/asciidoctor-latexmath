@@ -7,6 +7,7 @@
 require "asciidoctor/extensions"
 require "fileutils"
 require "pathname"
+require "cgi"
 require_relative "renderer"
 
 module Asciidoctor
@@ -63,7 +64,15 @@ module Asciidoctor
         return unless latexmath_node?(stem)
 
         content = extract_block_content(stem)
-        result = render_equation(content, display: true, inline: false, id: stem.id, context: context)
+        result = render_equation(
+          content,
+          display: true,
+          inline: false,
+          id: stem.id,
+          context: context,
+          asciidoc_source: stem.source,
+          source_location: stem.source_location
+        )
         return unless result
 
         parent = stem.parent
@@ -89,7 +98,7 @@ module Asciidoctor
         index = parent.blocks.index(stem)
         parent.blocks[index] = replacement if index
       rescue RenderingError => e
-        warn %(asciidoctor-latexmath: #{e.message})
+        insert_block_error(stem, e)
       end
 
       def handle_prose_block(prose, context)
@@ -143,11 +152,15 @@ module Asciidoctor
         end
       end
 
-      def render_equation(content, display:, inline:, context:, id: nil)
-        context[:renderer].render(equation: normalize_equation(content), display: display, inline: inline, id: id)
-      rescue RenderingError => e
-        warn %(asciidoctor-latexmath: #{e.message})
-        nil
+      def render_equation(content, display:, inline:, context:, id: nil, asciidoc_source: nil, source_location: nil)
+        context[:renderer].render(
+          equation: normalize_equation(content),
+          display: display,
+          inline: inline,
+          id: id,
+          asciidoc_source: asciidoc_source,
+          source_location: source_location
+        )
       end
 
       def normalize_equation(content)
@@ -195,7 +208,22 @@ module Asciidoctor
             if style == "latexmath"
               inline_subs = (subs.nil? || subs.empty?) ? [] : node.resolve_pass_subs(subs)
               equation = node.apply_subs(equation, inline_subs) unless inline_subs.empty?
-              result = render_equation(equation, display: false, inline: true, context: context)
+              begin
+                result = render_equation(
+                  equation,
+                  display: false,
+                  inline: true,
+                  context: context,
+                  asciidoc_source: match[0],
+                  source_location: node.source_location
+                )
+              rescue RenderingError => e
+                location = node.source_location
+                log_rendering_error(e, location)
+                ensure_macros_substitution(node)
+                modified = true
+                next inline_error_markup(e, location)
+              end
               next match[0] unless result
 
               modified = true
@@ -267,6 +295,74 @@ module Asciidoctor
 
         output_dir = doc.normalize_system_path(output_dir, doc.attr("docdir"))
         [output_dir, target_dir]
+      end
+
+      def insert_block_error(stem, error)
+    log_rendering_error(error, stem.source_location)
+    parent = stem.parent
+    return unless parent
+
+    text = block_error_text(error, stem.source_location)
+        replacement = Asciidoctor::Block.new(parent, :listing, source: text)
+        replacement.add_role("latexmath-error") if replacement.respond_to?(:add_role)
+        replacement.id = stem.id if stem.id
+        if (title = stem.attributes["title"])
+          replacement.title = title
+        end
+
+        index = parent.blocks.index(stem)
+        if index
+          parent.blocks[index] = replacement
+        else
+          parent.blocks << replacement
+        end
+      end
+
+      def block_error_text(error, source_location)
+        location_hint = format_error_location(source_location)
+        header = if location_hint.empty?
+          "Failed to render latexmath"
+        else
+          "Failed to render latexmath#{location_hint}"
+        end
+        header = "#{header}:"
+        message = error.message.to_s.rstrip
+        message.empty? ? header : "#{header}\n#{message}"
+      end
+
+      def inline_error_markup(error, source_location = nil)
+        location_hint = format_error_location(source_location)
+        prefix = "Failed to render latexmath"
+        prefix += location_hint unless location_hint.empty?
+        message = "#{prefix}: #{error.message}".strip
+        escaped = CGI.escapeHTML(message)
+        escaped = escaped.gsub(/\r?\n/, "<br>")
+        "+++<span class=\"latexmath-error\"><code>#{escaped}</code></span>+++"
+      end
+
+      def log_rendering_error(error, source_location)
+        location_hint = format_error_location(source_location)
+        first_line = error.message.to_s.lines.first&.strip || error.message.to_s
+        warn %(asciidoctor-latexmath: #{first_line}#{location_hint})
+      end
+
+      def format_error_location(source_location)
+        return "" unless source_location
+
+        file = if source_location.respond_to?(:file)
+          source_location.file
+        elsif source_location.respond_to?(:path)
+          source_location.path
+        elsif source_location.respond_to?(:filename)
+          source_location.filename
+        end
+
+        line = source_location.respond_to?(:lineno) ? source_location.lineno : nil
+
+        parts = []
+        parts << file if file && !file.to_s.empty?
+        parts << line if line
+        parts.empty? ? "" : " (#{parts.join(':')})"
       end
     end
   end
