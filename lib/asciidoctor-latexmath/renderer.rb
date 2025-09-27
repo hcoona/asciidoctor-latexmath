@@ -61,16 +61,21 @@ module Asciidoctor
 
           latex_source = build_document(equation, display)
           File.write(tex_path, latex_source)
-          run_pdflatex(
-            tex_path,
-            dir,
-            latex_source: latex_source,
-            asciidoc_source: asciidoc_source,
-            source_location: source_location
-          )
+          begin
+            run_pdflatex(
+              tex_path,
+              dir,
+              latex_source: latex_source,
+              asciidoc_source: asciidoc_source,
+              source_location: source_location
+            )
 
-          unless File.exist?(pdf_path)
-            raise RenderingError, "pdflatex did not produce #{basename}.pdf"
+            unless File.exist?(pdf_path)
+              raise RenderingError, "pdflatex did not produce #{basename}.pdf"
+            end
+          rescue RenderingError
+            copy_artifacts(dir, basename)
+            raise
           end
 
           case @format
