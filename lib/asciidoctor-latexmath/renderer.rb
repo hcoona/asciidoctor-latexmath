@@ -127,6 +127,15 @@ module Asciidoctor
         ]
 
         execute(command, work_dir: dir)
+      rescue RenderingError => e
+        latex_source = File.read(tex_path, mode: "r:UTF-8")
+        message = <<~MSG
+          #{e.message.rstrip}
+
+          LaTeX source (#{tex_path}):
+          #{latex_source}
+        MSG
+        raise RenderingError, message
       end
 
       def handle_pdf(pdf_path, dir, basename, inline_embed)
