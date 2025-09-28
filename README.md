@@ -28,6 +28,7 @@ Offline `latexmath` rendering for Asciidoctor documents powered by your local La
 - **LaTeX fidelity** – relies on the same `pdflatex`, `xelatex`, or `lualatex` tooling used for high-quality print workflows.
 - **Multiple output formats** – generate PDF, SVG, or PNG assets to match your target backend.
 - **Drop-in integration** – register the extension once and keep authoring with the familiar `latexmath` syntax.
+- **Intelligent caching** – reuse previously rendered formulas (including inline data URIs) to keep iterative builds fast.
 
 ## How It Works
 
@@ -140,10 +141,18 @@ The extension replaces both expressions with rendered images that match the form
 | `latexmath-png-tool` | Converter used when `latexmath-format=png`. The extension auto-detects `magick`, `convert`, or `pdftoppm`; set this attribute to force a specific command. | Command name or path | *(auto)* |
 | `latexmath-keep-artifacts` | Preserve the generated `.tex`, `.log`, and intermediate PDF files for inspection. | `true`, `false` | `false` |
 | `latexmath-artifacts-dir` | Destination directory for kept artifacts when `latexmath-keep-artifacts=true`. Relative paths are resolved from the document directory. | Path | `imagesoutdir` (or document directory) |
+| `latexmath-cache` | Enables the on-disk cache for rendered formulas. Set to `false` to force regeneration on every run. | `true`, `false` | `true` |
+| `latexmath-cache-dir` | Directory that stores cached render metadata and assets. Resolved relative to the document directory when relative. | Path | `<outdir>/.asciidoctor/latexmath` |
 
 All generated images follow Asciidoctor's standard image directory rules. Set `imagesoutdir` to control where files are written on disk and `imagesdir` to influence how they are referenced from the rendered document. Inline math inside literal table cells is also supported—the extension adds macro substitutions automatically so the rendered `<span class="image">…</span>` markup appears inside the literal block.
 
 Set attributes via the CLI or document header, for example: `-a latexmath-format=png`.
+
+## Caching
+
+The renderer persists every successful compilation so repeated conversions can reuse the existing SVG/PNG/PDF payloads without invoking your LaTeX toolchain again. Cache entries are keyed by the equation text, display/inline mode, selected output format, preamble contents, and rendering tools, which keeps results correct even when you tweak your setup. Inline rendering via `-a latexmath-inline` reuses the cached inline markup as well, so enabling `-a data-uri` no longer slows down incremental builds.
+
+By default, cache files live under `<outdir>/.asciidoctor/latexmath`. Override this location with `-a latexmath-cache-dir=path/to/cache` or disable caching altogether with `-a latexmath-cache=false` when you need a clean rebuild. Removing the cache directory forces the next run to regenerate every formula.
 
 ## Why asciidoctor-latexmath?
 
@@ -161,7 +170,7 @@ Choose `asciidoctor-latexmath` when you already depend on a LaTeX distribution a
 - **LaTeX engine not found** – install a LaTeX distribution (TeX Live, MiKTeX, MacTeX, or Tectonic) and ensure the binaries are on your `PATH`.
 - **Blank or clipped formulas** – enable `-a latexmath-keep-artifacts=true` and inspect the generated `.log` file for LaTeX errors.
 - **Missing glyphs** – install Computer Modern or other math-capable fonts that ship with TeX Live/MacTeX.
-- **Slow builds** – consider caching the generated assets or pre-rendering formulas as part of your CI pipeline.
+- **Slow builds** – caching is enabled by default; ensure `<outdir>/.asciidoctor/latexmath` is writable. Use `-a latexmath-cache=false` if you need to force a full regeneration.
 
 ## Contributing
 

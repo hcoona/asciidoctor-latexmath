@@ -8,8 +8,9 @@ require "tmpdir"
 require "fileutils"
 require "open3"
 require "shellwords"
-require "digest/md5"
+require "digest"
 require "pathname"
+require "json"
 require "asciidoctor"
 
 module Asciidoctor
@@ -29,6 +30,7 @@ module Asciidoctor
 
     class Renderer
       DEFAULT_FORMAT = :svg
+      CACHE_VERSION = 1
       LATEX_TEMPLATE = <<~'LATEX'
         \documentclass[preview,border=2bp]{standalone}
         \usepackage{amsmath}
@@ -49,12 +51,29 @@ module Asciidoctor
         @pdf2svg = resolve_command(document.attr("latexmath-pdf2svg") || "pdf2svg") if @format == :svg || @inline_attribute
         @png_tool = resolve_png_tool if @format == :png
         @preamble = document.attr("latexmath-preamble")
+        @cache_enabled = cache_enabled?
+        @cache_dir = resolve_cache_dir if @cache_enabled
       end
 
       def render(equation:, display:, inline: false, id: nil, asciidoc_source: nil, source_location: nil)
         basename = sanitize_basename(id) || auto_basename(equation)
         inline_embed = inline && @inline_attribute
+        signature = cache_signature(
+          equation: equation,
+          display: display,
+          inline: inline,
+          inline_embed: inline_embed
+        )
+        equation_digest = Digest::SHA256.hexdigest(equation)
 
+        if @cache_enabled
+          if (cached = load_cached_render(basename, signature, equation_digest, inline_embed))
+            copy_cached_artifacts(signature, basename) if @keep_artifacts
+            return cached
+          end
+        end
+
+        result = nil
         Dir.mktmpdir("asciidoctor-latexmath-") do |dir|
           tex_path = File.join(dir, "#{basename}.tex")
           pdf_path = File.join(dir, "#{basename}.pdf")
@@ -78,7 +97,7 @@ module Asciidoctor
             raise
           end
 
-          case @format
+          result = case @format
           when :pdf
             handle_pdf(pdf_path, dir, basename, inline_embed)
           when :svg
@@ -88,7 +107,12 @@ module Asciidoctor
           else
             raise RenderingError, "Unsupported format: #{@format}"
           end
+
+          if @cache_enabled && result
+            persist_cached_render(signature, equation_digest, inline_embed, result, dir, basename)
+          end
         end
+        result
       end
 
       private
@@ -244,6 +268,162 @@ module Asciidoctor
         svg_data.sub(/\A<\?xml.*?\?>\s*/m, "").sub(/<!DOCTYPE.*?>\s*/m, "")
       end
 
+      def cache_enabled?
+        value = @document.attr("latexmath-cache")
+        return true if value.nil?
+        !%w[false off no 0].include?(value.to_s.downcase)
+      end
+
+      def resolve_cache_dir
+        attr = @document.attr("latexmath-cache-dir")
+        docdir = @document.attr("docdir")
+        if attr && !attr.to_s.strip.empty?
+          @document.normalize_system_path(attr, docdir)
+        else
+          base_attr = @document.attr("outdir") || docdir || Dir.pwd
+          base = @document.normalize_system_path(base_attr, docdir)
+          File.join(base, ".asciidoctor", "latexmath")
+        end
+      rescue
+        File.join(Dir.pwd, ".asciidoctor", "latexmath")
+      end
+
+      def cache_signature(equation:, display:, inline:, inline_embed:)
+        components = [
+          @format,
+          equation,
+          display,
+          inline,
+          inline_embed,
+          @preamble.to_s,
+          @ppi,
+          @pdf_engine,
+          @pdf2svg,
+          @png_tool
+        ]
+        Digest::SHA256.hexdigest(components.join("\u0000"))
+      end
+
+      def cache_entry_dir(basename, signature)
+        File.join(@cache_dir, basename, signature)
+      end
+
+      def cache_metadata_path(basename, signature)
+        File.join(cache_entry_dir(basename, signature), "metadata.json")
+      end
+
+      def load_cached_render(basename, signature, equation_digest, inline_embed)
+        return unless @cache_dir
+        metadata_path = cache_metadata_path(basename, signature)
+        return unless File.file?(metadata_path)
+
+        metadata = JSON.parse(File.read(metadata_path), symbolize_names: true)
+        return unless metadata[:version] == CACHE_VERSION
+        return unless metadata[:signature] == signature
+        return unless metadata[:source_digest] == equation_digest
+        return unless metadata[:inline_embed] == inline_embed
+
+        data_path = metadata[:data_path]
+        return unless data_path
+
+        data_file = File.join(cache_entry_dir(basename, signature), data_path)
+        return unless File.file?(data_file)
+
+        data = File.binread(data_file)
+        if (encoding = metadata[:encoding])
+          begin
+            data.force_encoding(Encoding.find(encoding))
+          rescue
+            data.force_encoding(Encoding::BINARY)
+          end
+        end
+
+        RenderResult.new(
+          format: metadata[:format]&.to_sym,
+          data: data,
+          extension: metadata[:extension],
+          width: metadata[:width],
+          height: metadata[:height],
+          inline_markup: metadata[:inline_markup],
+          basename: basename
+        )
+      rescue
+        nil
+      end
+
+      def persist_cached_render(signature, equation_digest, inline_embed, result, dir, basename)
+        return unless @cache_dir
+
+        entry_dir = cache_entry_dir(basename, signature)
+        FileUtils.rm_rf(entry_dir)
+        FileUtils.mkdir_p(entry_dir)
+
+        data_filename = if result.extension
+          "result.#{result.extension}"
+        else
+          "result.bin"
+        end
+
+        if result.data
+          File.binwrite(File.join(entry_dir, data_filename), result.data)
+        else
+          data_filename = nil
+        end
+
+        metadata = {
+          version: CACHE_VERSION,
+          signature: signature,
+          format: result.format.to_s,
+          extension: result.extension,
+          width: result.width && result.width.to_f,
+          height: result.height && result.height.to_f,
+          inline_embed: inline_embed,
+          encoding: result.data&.encoding&.name,
+          data_path: data_filename,
+          source_digest: equation_digest,
+          inline_markup: result.inline_markup
+        }
+
+        artifacts = store_cache_artifacts(entry_dir, dir, basename)
+        metadata[:artifacts] = artifacts unless artifacts.empty?
+        metadata.delete(:data_path) unless data_filename
+
+        File.write(cache_metadata_path(basename, signature), JSON.pretty_generate(stringify_keys(metadata)))
+      rescue
+        nil
+      end
+
+      def store_cache_artifacts(entry_dir, dir, basename)
+        return [] unless @keep_artifacts
+
+        artifacts = Dir.glob(File.join(dir, "#{basename}.*"))
+        return [] if artifacts.empty?
+
+        target_dir = File.join(entry_dir, "artifacts")
+        FileUtils.mkdir_p(target_dir)
+
+        artifacts.map do |path|
+          filename = File.basename(path)
+          FileUtils.cp(path, File.join(target_dir, filename))
+          filename
+        end
+      end
+
+      def copy_cached_artifacts(signature, basename)
+        return unless @cache_dir
+
+        artifacts_dir = File.join(cache_entry_dir(basename, signature), "artifacts")
+        return unless Dir.exist?(artifacts_dir)
+
+        copy_artifacts(artifacts_dir, basename)
+      end
+
+      def stringify_keys(hash)
+        hash.each_with_object({}) do |(key, value), memo|
+          memo[key.to_s] = value
+        end
+      end
+
       def copy_artifacts(dir, basename)
         return unless @keep_artifacts
 
@@ -312,7 +492,7 @@ module Asciidoctor
         parts = []
         parts << file if file && !file.to_s.empty?
         parts << line if line
-        parts.empty? ? "" : " (#{parts.join(':')})"
+        parts.empty? ? "" : " (#{parts.join(":")})"
       end
 
       def truthy_attr?(name)
