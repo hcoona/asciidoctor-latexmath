@@ -78,3 +78,11 @@ l| This is an *inline* equation: latexmath:[a^2+b^2=c^2].
   \alpha_b :: F b \to G b
 \end{gather*}
 ++++
+
+[latexmath]
+++++
+\begin{align*}
+  F & = m \frac{dv}{dt} \\
+  v & = \frac{dx}{dt}
+\end{align*}
+++++

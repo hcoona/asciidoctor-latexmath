@@ -89,6 +89,45 @@ RSpec.describe Asciidoctor::Latexmath::Renderer do
     end
   end
 
+  describe "#render" do
+    it "unescapes HTML entities before compiling LaTeX" do
+      attributes["latexmath-cache"] = "false"
+
+      equation = <<~LATEX
+        \\begin{align*}
+          F &amp; = m \\frac{dv}{dt} \\
+          v &amp; = \\frac{dx}{dt}
+        \\end{align*}
+      LATEX
+
+      captured_source = nil
+
+      allow(renderer).to receive(:run_pdflatex) do |tex_path, dir, latex_source:, **_opts|
+        captured_source = latex_source
+        pdf_path = File.join(dir, "#{File.basename(tex_path, ".tex")}.pdf")
+        File.write(pdf_path, "%PDF-1.4\n%stub")
+      end
+
+      allow(renderer).to receive(:handle_svg) do |_pdf_path, _dir, basename, inline_embed|
+        expect(inline_embed).to eq(false)
+        Asciidoctor::Latexmath::RenderResult.new(
+          format: :svg,
+          data: "<svg/>",
+          extension: "svg",
+          width: 100.0,
+          height: 40.0,
+          basename: basename
+        )
+      end
+
+      renderer.render(equation: equation, display: true, inline: false)
+
+      expect(captured_source).to include('F & = m \frac{dv}{dt}')
+      expect(captured_source).to include('v & = \frac{dx}{dt}')
+      expect(captured_source).not_to include("&amp;")
+    end
+  end
+
   describe "caching" do
     let(:workspace_dir) { Dir.mktmpdir("latexmath-spec-") }
 

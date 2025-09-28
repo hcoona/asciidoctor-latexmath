@@ -11,6 +11,7 @@ require "shellwords"
 require "digest"
 require "pathname"
 require "json"
+require "cgi"
 require "asciidoctor"
 
 module Asciidoctor
@@ -56,15 +57,16 @@ module Asciidoctor
       end
 
       def render(equation:, display:, inline: false, id: nil, asciidoc_source: nil, source_location: nil)
-        basename = sanitize_basename(id) || auto_basename(equation)
+        normalized_equation = normalize_equation(equation)
+        basename = sanitize_basename(id) || auto_basename(normalized_equation)
         inline_embed = inline && @inline_attribute
         signature = cache_signature(
-          equation: equation,
+          equation: normalized_equation,
           display: display,
           inline: inline,
           inline_embed: inline_embed
         )
-        equation_digest = Digest::SHA256.hexdigest(equation)
+        equation_digest = Digest::SHA256.hexdigest(normalized_equation)
 
         if @cache_enabled
           if (cached = load_cached_render(basename, signature, equation_digest, inline_embed))
@@ -78,7 +80,7 @@ module Asciidoctor
           tex_path = File.join(dir, "#{basename}.tex")
           pdf_path = File.join(dir, "#{basename}.pdf")
 
-          latex_source = build_document(equation, display)
+          latex_source = build_document(normalized_equation, display)
           File.write(tex_path, latex_source)
           begin
             run_pdflatex(
@@ -509,6 +511,15 @@ module Asciidoctor
 
       def latex_environment?(equation)
         equation.match?(/\\begin\s*\{[^}]+\}/) && equation.match?(/\\end\s*\{[^}]+\}/)
+      end
+
+      def normalize_equation(equation)
+        return "" if equation.nil?
+
+        stripped = equation.to_s.strip
+        return "" if stripped.empty?
+
+        CGI.unescapeHTML(stripped).tr("\u00A0", " ")
       end
     end
   end
