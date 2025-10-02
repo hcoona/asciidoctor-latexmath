@@ -50,31 +50,29 @@
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3 (Principle P2)
 **CRITICAL: These specs MUST be written and MUST FAIL before ANY implementation**
 - [ ] T004 [P] BlockProcessor contract spec in spec/processors/block_processor_spec.rb
-- [ ] T005 [P] BlockMacroProcessor contract spec in spec/processors/block_macro_processor_spec.rb
-- [ ] T006 [P] InlineMacroProcessor contract spec in spec/processors/inline_macro_processor_spec.rb
-- [ ] T007 [P] Renderer pipeline & cache key spec in spec/renderer/pipeline_spec.rb
+- [ ] T005 [P] InlineMacroProcessor contract spec in spec/processors/inline_macro_processor_spec.rb
+- [ ] T006 [P] Renderer pipeline & cache key spec in spec/renderer/pipeline_spec.rb
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
-- [ ] T008 [P] Implement BlockProcessor (lib/asciidoctor/latexmath/block_processor.rb)
-- [ ] T009 [P] Implement BlockMacroProcessor (lib/asciidoctor/latexmath/block_macro_processor.rb)
-- [ ] T010 [P] Implement InlineMacroProcessor (lib/asciidoctor/latexmath/inline_macro_processor.rb)
-- [ ] T011 [P] Implement renderer pipeline (lib/asciidoctor/latexmath/renderer/pipeline.rb)
-- [ ] T012 Implement cache key & storage (lib/asciidoctor/latexmath/cache.rb)
-- [ ] T013 Attribute parsing & validation module (lib/asciidoctor/latexmath/attributes.rb)
-- [ ] T014 External toolchain detection & timeout handling (lib/asciidoctor/latexmath/toolchain.rb)
+- [ ] T007 [P] Implement BlockProcessor (lib/asciidoctor/latexmath/block_processor.rb)
+- [ ] T008 [P] Implement InlineMacroProcessor (lib/asciidoctor/latexmath/inline_macro_processor.rb)
+- [ ] T009 [P] Implement renderer pipeline (lib/asciidoctor/latexmath/renderer/pipeline.rb)
+- [ ] T010 Implement cache key & storage (lib/asciidoctor/latexmath/cache.rb)
+- [ ] T011 Attribute parsing & validation module (lib/asciidoctor/latexmath/attributes.rb)
+- [ ] T012 External toolchain detection & timeout handling (lib/asciidoctor/latexmath/toolchain.rb)
 
 ## Phase 3.4: Integration
-- [ ] T015 [P] Attribute precedence integration spec (spec/integration/attribute_precedence_spec.rb)
-- [ ] T016 [P] Cache reuse integration spec (spec/integration/cache_reuse_spec.rb)
-- [ ] T017 [P] Security & timeout integration spec (spec/integration/security_spec.rb)
+- [ ] T013 [P] Attribute precedence integration spec (spec/integration/attribute_precedence_spec.rb)
+- [ ] T014 [P] Cache reuse integration spec (spec/integration/cache_reuse_spec.rb)
+- [ ] T015 [P] Security & timeout integration spec (spec/integration/security_spec.rb)
 
 ## Phase 3.5: Polish
-- [ ] T018 [P] Standard Ruby lint & autofix (CI) (bin/ or Rake task)
-- [ ] T019 [P] Performance smoke spec (< target ms) (spec/performance/pipeline_perf_spec.rb)
-- [ ] T020 Update README attribute & usage tables
-- [ ] T021 Update DESIGN.md & class diagram
-- [ ] T022 Prepare CHANGELOG & version bump rationale
-- [ ] T023 Manual smoke test on sample.adoc (document steps)
+- [ ] T016 [P] Standard Ruby lint & autofix (CI) (bin/ or Rake task)
+- [ ] T017 [P] Performance smoke spec (< target ms) (spec/performance/pipeline_perf_spec.rb)
+- [ ] T018 Update README attribute & usage tables
+- [ ] T019 Update DESIGN.md & class diagram
+- [ ] T020 Prepare CHANGELOG & version bump rationale
+- [ ] T021 Manual smoke test on sample.adoc (document steps)
 
 ## Dependencies
 - Tests (T004-T007) before implementation (T008-T014) (P2 enforcement)
@@ -84,9 +82,8 @@
 
 ## Parallel Example
 ```
-# Launch T004-T007 together (independent spec files):
+# Launch T004-T006 together (independent spec files):
 Task: "BlockProcessor contract spec"
-Task: "BlockMacroProcessor contract spec"
 Task: "InlineMacroProcessor contract spec"
 Task: "Renderer pipeline & cache key spec"
 ```
@@ -119,7 +116,7 @@ Task: "Renderer pipeline & cache key spec"
 ## Validation Checklist
 *GATE: Checked by main() before returning*
 
-- [ ] All processors have contract specs (P1/P2)
+- [ ] Both processors have contract specs (P1/P2)
 - [ ] Renderer pipeline & cache key spec present (P5)
 - [ ] All tests come before implementation (P2)
 - [ ] Parallel tasks truly independent
@@ -129,4 +126,4 @@ Task: "Renderer pipeline & cache key spec"
 - [ ] Lint & style task present (P4)
 
 ---
-*Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v2.0.0 - See `.specify/memory/constitution.md`*

@@ -47,8 +47,8 @@
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Principles Quick Reference (see Constitution v1.0.0):
-- P1 Processor Trio Only: No TreeProcessor, no Mathematical gem. Plan MUST NOT introduce prohibited processors.
+Principles Quick Reference (see Constitution v2.0.0):
+- P1 Processor Duo Only: Only Block + Inline processors; no BlockMacro, no TreeProcessor, no Mathematical gem.
 - P2 Interface-First Waterfall + TDD: Interfaces & attribute matrix documented before implementation tasks.
 - P3 Diagram Parity: Attribute parity or deviations with Asciidoctor-Diagram noted (list each differing attribute).
 - P4 Quality & Toolchain: Style (standardrb), reproducible build, semantic version bump strategy included.
@@ -228,4 +228,4 @@ directories captured above]
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v2.0.0 - See `.specify/memory/constitution.md`*

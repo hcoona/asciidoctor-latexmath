@@ -58,6 +58,7 @@ When creating this spec from a user prompt:
 - Q: FR-033 v1 是否需要插件自带的独立 data URI 开关 / 默认是否启用内联? → A: 不提供独立开关；v1 仅继承 Asciidoctor 全局 `:data-uri:` 行为，不自行生成 `data:` URL；当检测到 `data-uri` 属性时仅改用产物绝对路径（与 `asciidoctor-diagram` 一致），未来可扩展细粒度策略。
 - Q: 超时属性命名与单位选哪种方案? → A: 采用文档级 `:latexmath-timeout:` （正整数秒），元素级 `timeout=` 覆写；不支持毫秒与多属性回退。
 - Q: 统计禁用设计（FR-035）采用哪种方案? → A: 通过日志级别控制统计输出；不引入专有属性；降低日志级别（quiet）即抑制统计。
+- Q: 是否支持 `latexmath::[]` 块宏语法? → A: 不支持；范围限定为 `[latexmath]` 块与 `latexmath:[...]` 内联宏两种入口。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -65,7 +66,7 @@ When creating this spec from a user prompt:
 作为技术写作者 / CI 构建系统, 我希望在离线或受限网络环境中把文档中所有 `latexmath` 数学公式（块、块宏、内联）一次性渲染为所需的矢量或位图资源 (SVG / PDF / PNG), 并在重复构建时复用缓存, 以保证输出质量、构建速度和可重复性。
 
 ### Acceptance Scenarios
-1. **Given** 文档设置 `:stem: latexmath` 且默认 `:latexmath-format: svg`, **When** 运行文档转换, **Then** 每个 `latexmath` 块 / 宏 / 内联公式被渲染为单个 SVG 文件并写入 `imagesoutdir`, 文档中对应位置引用这些 SVG, 重复运行构建时同一内容不重新调用外部工具 (缓存命中统计≥1)。
+1. **Given** 文档设置 `:stem: latexmath` 且默认 `:latexmath-format: svg`, **When** 运行文档转换, **Then** 每个 `latexmath` 块 / 内联公式被渲染为单个 SVG 文件并写入 `imagesoutdir`, 文档中对应位置引用这些 SVG, 重复运行构建时同一内容不重新调用外部工具 (缓存命中统计≥1)。
 2. **Given** 用户请求 `:latexmath-format: svg` 但系统缺少 `dvisvgm` 与 `pdf2svg`, **When** 执行构建, **Then** 构建失败并输出清晰错误: 缺失的命令列表、建议安装方式、指向禁用或切换格式的提示, 不产生半成品文件。
 3. **Given** 用户在块级添加 `[%nocache]` 与 `format=png, ppi=200`, **When** 构建两次, **Then** 该块两次都重新渲染且生成 PNG (200 PPI) 文件名保持一致, 其它未加 `%nocache` 的表达式复用缓存。
 4. **Given** 并行构建 (两个独立进程) 渲染同一公式文本, **When** 同时启动, **Then** 结果只有一个缓存条目被写入 (无损坏 / 无临时文件泄漏) 且两个进程均成功引用该产物。
@@ -84,7 +85,7 @@ When creating this spec from a user prompt:
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
-- **FR-001**: MUST 支持三种入口语法：`[latexmath]` 块、`latexmath::target[]` 块宏、`latexmath:[...]` 内联宏（包含文档属性与元素属性覆写）。
+- **FR-001**: MUST 支持两种入口语法：`[latexmath]` 块 与 `latexmath:[...]` 内联宏（包含文档属性与元素属性覆写）；MUST NOT 支持 `latexmath::[]` 块宏形式。
 - **FR-002**: MUST 依据文档或元素属性渲染为 `svg|pdf|png` 三种格式之一；默认 `svg`。
 - **FR-003**: MUST 允许用户通过属性选择编译引擎 (pdflatex/xelatex/lualatex/tectonic)。
 - **FR-004**: MUST 在缺少所需工具链时以可操作错误终止，列出缺失命令与建议解决方式。
@@ -92,7 +93,7 @@ When creating this spec from a user prompt:
 - **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cache-dir=`、`artifacts-dir=` 覆写。
 - **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。
 - **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）。
-- **FR-009**: MUST 对块/块宏首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 一致）。
+- **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名，避免冲突。
 - **FR-011**: MUST 缓存键包含：内容哈希、最终格式、引擎类型、preamble 哈希、工具版本签名、PPI、入口类型（块/内联）、扩展版本。
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。

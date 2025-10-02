@@ -1,35 +1,35 @@
 <!--
 Sync Impact Report
-Version: (none) -> 1.0.0
-Principles Added:
-	P1 Processor Trio Only (No TreeProcessor / No Mathematical Gem)
-	P2 Interface-First Waterfall + TDD Gating
-	P3 Configuration Parity with Asciidoctor-Diagram
-	P4 Quality, Style & Toolchain Discipline
-	P5 Deterministic Rendering, Caching & Security
-Sections Added: Core Principles; Development Workflow & Quality Gates; Documentation & Traceability Standards; Governance
+Version: 1.0.0 -> 2.0.0
+Modified Principles:
+	P1 Processor Trio Only -> P1 Processor Duo Only (No BlockMacro / No TreeProcessor / No Mathematical Gem)
+Added Principles: none
+Removed Principles: none
+Sections Added: none
+Sections Removed: none
 Templates Updated:
-	.specify/templates/plan-template.md ✅ (version reference updated)
-	.specify/templates/spec-template.md ✅ (version reference added)
-	.specify/templates/tasks-template.md ✅ (Ruby + extension domain examples)
-	.specify/templates/agent-file-template.md ⚠ (unchanged – still generic)
-Removed Sections: none
+	.specify/templates/plan-template.md ✅ (P1 wording + version ref)
+	.specify/templates/spec-template.md ✅ (version ref)
+	.specify/templates/tasks-template.md ✅ (removed BlockMacro tasks, renumbered)
+	.specify/templates/agent-file-template.md ⚠ (generic, no change required)
 Follow-up TODOs: none
+Rationale: Removal of BlockMacroProcessor support is a backward-incompatible scope contraction → MAJOR bump.
 -->
 
 # asciidoctor-latexmath Constitution
 
 ## Core Principles
 
-### P1. Processor Trio Only (NON-NEGOTIABLE)
+### P1. Processor Duo Only (NON-NEGOTIABLE)
 Rules:
-- MUST implement exactly three entrypoints: BlockProcessor, BlockMacroProcessor, InlineMacroProcessor.
+- MUST implement exactly two entrypoints: BlockProcessor and InlineMacroProcessor.
+- MUST NOT implement or register a BlockMacroProcessor for `latexmath` (syntax `latexmath::[]` is out-of-scope by design).
 - MUST NOT register or rely on TreeProcessor (global AST mutation prohibited).
 - MUST NOT depend on `Mathematical` gem or reuse its runtime image generation logic.
 - Processors MUST delegate rendering to a shared, pure rendering pipeline (no side effects outside provided dirs).
 - Attribute & option resolution MUST be deterministic and local to each invocation.
-Rationale: Guarantees predictable extension behavior, minimizes global coupling, and aligns surface area with
-Asciidoctor-Diagram conventions for user familiarity.
+Out-of-Scope Examples (MUST NOT add later without MAJOR bump): Block macro syntax, auto-math environment inference via AST sweeping.
+Rationale: Tighter surface reduces maintenance & cognitive load; BlockMacro adds negligible value over block form while increasing complexity.
 
 ### P2. Interface-First Waterfall with Enforced TDD
 Rules:
@@ -114,4 +114,4 @@ Record Keeping:
 Guidance File:
 - Primary runtime guidance: LEARN.md (living log) + DESIGN.md (architecture source of truth).
 
-**Version**: 1.0.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02
+**Version**: 2.0.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02

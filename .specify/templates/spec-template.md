@@ -115,4 +115,4 @@ When creating this spec from a user prompt:
 
 ---
 
-*Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v2.0.0 - See `.specify/memory/constitution.md`*
