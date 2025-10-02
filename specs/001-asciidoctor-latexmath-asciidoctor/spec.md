@@ -52,6 +52,13 @@ When creating this spec from a user prompt:
 
 ---
 
+## Clarifications
+
+### Session 2025-10-02
+- Q: FR-033 v1 是否需要插件自带的独立 data URI 开关 / 默认是否启用内联? → A: 不提供独立开关；v1 仅继承 Asciidoctor 全局 `:data-uri:` 行为，不自行生成 `data:` URL；当检测到 `data-uri` 属性时仅改用产物绝对路径（与 `asciidoctor-diagram` 一致），未来可扩展细粒度策略。
+- Q: 超时属性命名与单位选哪种方案? → A: 采用文档级 `:latexmath-timeout:` （正整数秒），元素级 `timeout=` 覆写；不支持毫秒与多属性回退。
+- Q: 统计禁用设计（FR-035）采用哪种方案? → A: 通过日志级别控制统计输出；不引入专有属性；降低日志级别（quiet）即抑制统计。
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### Primary User Story
@@ -109,11 +116,10 @@ When creating this spec from a user prompt:
 - **FR-030**: SHOULD 在工具缺失时建议替代（如缺少 `dvisvgm` → 提示使用 `pdf2svg` 或更换目标格式）。
 - **FR-031**: SHOULD 在启动时输出一次工具签名摘要（可禁用）。
 - **FR-032**: SHOULD 为重复出现的大型公式记录单独耗时便于性能诊断。
-- **FR-033**: SHOULD 支持（未来）可选 data URI 模式的文档级开关 [NEEDS CLARIFICATION: 默认是否计划在 v1 启用 data URI?]。
-- **FR-034**: SHOULD 允许用户自定义超时时间 [NEEDS CLARIFICATION: 通过何属性命名? 例如 `latexmath-timeout`?]。
-- **FR-035**: SHOULD 允许禁用统计输出 [NEEDS CLARIFICATION: 是否需要属性?].
+- **FR-033**: SHOULD（未来扩展）支持独立于全局 `:data-uri:` 的细粒度内联策略；v1 不提供专有 data URI 开关，仅继承 Asciidoctor 核心 `:data-uri:` 行为并通过绝对路径辅助核心内联。
+- **FR-034**: SHOULD 允许用户自定义渲染超时：文档级属性 `:latexmath-timeout:` （正整数秒，默认 120），元素级属性 `timeout=` 可覆写当前表达式；非法或非正整数值应报错并回退默认。
+- **FR-035**: SHOULD 统计输出仅随日志级别（info 及以上）显示；不提供文档/元素级属性；当日志级别 quiet 或低于 info 不输出统计；需测试日志级别切换的可控性。
 
-*NEEDS CLARIFICATION 列表将于后续研究/计划阶段解答并清除。*
 
 ### Key Entities *(include if feature involves data)*
 - **Math Expression**: 用户在文档中的原始 LaTeX 公式文本（块/宏/内联）。
