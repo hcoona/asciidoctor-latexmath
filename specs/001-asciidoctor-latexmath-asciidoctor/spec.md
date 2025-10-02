@@ -122,7 +122,13 @@ When creating this spec from a user prompt:
 - **FR-005**: MUST 在同一内容+配置组合下重复构建时命中缓存且不重复调用外部命令（命中率可统计）。
 - **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`xelatex=`、`lualatex=`、`tectonic=`、`dvisvgm=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 早期草案命名弃用（可作为别名接受但不在文档公开）。
 - **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。
-- **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）；但当用户通过位置属性显式提供基名且其中包含相对路径段（可含子目录或 `..` 段）时，按 Supplemental Clarifications 决策：不做清洗 / 限制；路径相对 `imagesoutdir` 解析后可逃逸该目录（显式覆写例外）；自动生成哈希基名（FR-010）不享受此例外，始终落在 `imagesoutdir` 内。
+- **FR-008**: MUST 生成的输出文件路径决策顺序与 `asciidoctor-diagram` 对齐：
+   1. 若存在文档/元素属性 `imagesoutdir` → 输出目录 = 解析后的 `imagesoutdir`（无需再参考 `outdir` / `to_dir` / `imagesdir`）。
+   2. 否则确定根目录 R：优先级 `outdir` 属性 > 文档 options `:to_dir` > 文档 `base_dir`。
+   3. 若存在 `imagesdir` 属性 → 输出目录 = R / `imagesdir`；否则输出目录 = R。
+   4. 若目录不存在在写入前自动创建。
+   5. 以上决策仅影响物理写入位置；HTML 引用使用 `imagesdir` / 节点级 `imagesdir`（当启用 `autoimagesdir` 时可能被节点覆写）；当启用 `data-uri` 或节点 `inline` 选项时引用改为绝对路径或内联但仍按上述位置生成文件。
+   当用户通过块首位置属性显式提供基名且其中包含相对路径段（可含子目录或 `..` 段）时，按 Supplemental Clarifications 决策：不做清洗 / 限制；该相对路径以步骤 (1)/(2)/(3) 得出的“输出目录”作为解析锚点（即：若使用 `imagesoutdir` 则相对 `imagesoutdir`，否则相对 R）；这可能使最终路径越出 `imagesoutdir`（显式覆写例外）；自动生成哈希基名（FR-010）不享受此例外，始终落在步骤 (1)/(2)/(3) 计算出的基础输出目录（不附加额外越界子路径）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。显式基名允许包含路径分隔符与任意数量 `..` 段（不清洗，不拒绝）；当基名包含扩展：若末尾扩展 ∈ {svg,pdf,png} 且与目标格式匹配 → 保留；若末尾扩展 ∈ {svg,pdf,png} 但与目标格式不匹配 → “替换”该扩展为目标格式（WARN）；若末尾扩展不在集合 → 追加正确扩展（形成双扩展，WARN）。WARN 级别日志应指明原始名称与最终采用名称。冲突检测与缓存键逻辑基于最终文件名与 FR-011 组成。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。若该 16 字符截断产生与不同内容/配置的另一表达式基名冲突（极低概率），在写入阶段检测：追加 `-1`,`-2` 递增直到不冲突，并记录单次 WARN；递增后基名不再回溯修改缓存键（缓存键使用完整 SHA256）。
  - **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、preamble 哈希、PPI、入口类型（块/内联）、扩展版本；不包含编译引擎 / 转换 / PNG 工具的名称或版本（参见 Clarifications 2025-10-02 工具版本签名决策）；因此在同一表达式上切换引擎（pdflatex↔xelatex↔lualatex↔tectonic）或 SVG/PNG 转换工具（dvisvgm↔pdf2svg，pdftoppm↔magick↔gs）不会触发缓存失效；用户若需强制重渲染需修改 preamble、格式或手动清理缓存；未来若引入严格模式将新增属性而不改变默认键组成；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称。
