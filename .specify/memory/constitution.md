@@ -1,19 +1,20 @@
 <!--
 Sync Impact Report
-Version: 1.0.0 -> 2.0.0
+Version: 2.0.0 -> 3.0.0
 Modified Principles:
-	P1 Processor Trio Only -> P1 Processor Duo Only (No BlockMacro / No TreeProcessor / No Mathematical Gem)
-Added Principles: none
-Removed Principles: none
-Sections Added: none
-Sections Removed: none
+	P5 Deterministic Rendering, Caching & Security (removed mandatory inclusion of toolchain versions in cache key; clarified exclusion)
+Added Sections: none
+Removed Sections: none
 Templates Updated:
-	.specify/templates/plan-template.md ✅ (P1 wording + version ref)
-	.specify/templates/spec-template.md ✅ (version ref)
-	.specify/templates/tasks-template.md ✅ (removed BlockMacro tasks, renumbered)
-	.specify/templates/agent-file-template.md ⚠ (generic, no change required)
-Follow-up TODOs: none
-Rationale: Removal of BlockMacroProcessor support is a backward-incompatible scope contraction → MAJOR bump.
+	.specify/templates/plan-template.md ⚠ (summary段含“工具版本”需改为“引擎切换不使缓存失效；缓存键不含工具名称/版本”)
+	.specify/templates/spec-template.md ⚠ (若引用缓存键字段需同步去除 toolchain versions)
+	.specify/templates/tasks-template.md ⚠ (任务 T008/T050 描述里 ‘tool version impact’ 需改为 ‘engine switch does NOT invalidate cache’ 测试)
+	.specify/templates/agent-file-template.md ⚠ (如存在缓存键字段说明需同步)
+Follow-up TODOs:
+ - Update plan.md summary 删除“工具版本”或改为“缓存不含工具/引擎名称与版本”
+ - Update tasks.md: 调整 T008/T050 描述与预期测试断言；新增测试：在不同引擎间切换仍命中缓存
+ - Update contracts/cache_key.md（若存在）列出字段清单（无工具链版本）
+Rationale: Project decision to maximize cache reuse across LaTeX engine / converter switches. Governance principle P5 redefined → MAJOR bump.
 -->
 
 # asciidoctor-latexmath Constitution
@@ -59,12 +60,15 @@ Rationale: Enforces consistent contributor experience and dependable releases.
 
 ### P5. Deterministic Rendering, Caching & Security
 Rules:
-- Rendering pipeline MUST be pure: output = f(content, attributes, pipeline_signature) with no ambient state.
-- Cache key MUST include: content hash, attribute hash (filtered & sorted), renderer version, toolchain versions.
-- On cache hit MUST skip tool execution entirely.
-- Shell execution MUST reject untrusted attribute injection (whitelisted args only) and enforce time & size limits.
+- Rendering pipeline MUST be pure: output = f(content, normalized_attributes, pipeline_signature) with no ambient state.
+- Cache key MUST include: content hash, normalized attribute signature (sorted & filtered), output format, preamble hash (if any), PPI (for raster), entrypoint type (block|inline), extension (gem) version.
+- Cache key MUST NOT include: LaTeX engine executable name / version (pdflatex, xelatex, lualatex, tectonic) NOR conversion tools (dvisvgm, pdf2svg, pdftoppm, magick, gs) NOR their versions.
+- Switching engine or conversion tool (while content & included fields unchanged) MUST yield a cache hit (no re-render) unless user explicitly clears cache.
+- Documentation MUST warn that differing toolchains MAY produce byte-level output differences (fonts, metadata). Teams requiring strict reproducibility MUST pin a single toolchain per build or enable a future strict mode.
+- On cache hit MUST skip external tool execution entirely.
+- Shell execution MUST reject untrusted attribute injection (whitelisted args only) and enforce timeout & resource limits.
 - Inline rendering (data URI / embedded SVG) MUST be optional and disabled by default unless explicitly requested.
-Rationale: Predictability improves performance, reproducibility, and security posture.
+Rationale: Excluding toolchain identity maximizes cache reuse and build performance. Trade‑off (possible minor output drift across engines) is documented; strict mode can be added later via additive principle without breaking the default.
 
 ## Development Workflow & Quality Gates
 Phases (Waterfall):
@@ -114,4 +118,4 @@ Record Keeping:
 Guidance File:
 - Primary runtime guidance: LEARN.md (living log) + DESIGN.md (architecture source of truth).
 
-**Version**: 2.0.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02
+**Version**: 3.0.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02
