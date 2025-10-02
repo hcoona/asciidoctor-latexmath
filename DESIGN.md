@@ -13,8 +13,10 @@ asciidoctor-latexmath 为 Asciidoctor 提供离线 `latexmath` 渲染能力，�
 
 ## 需求概述
 
+> 2025-10-02 更新：依据宪法 v2.0.0 (P1 Processor Duo Only) 设计收缩为仅 BlockProcessor + InlineMacroProcessor；移除早期草案中的 BlockMacroProcessor 支持。
+
 ### 功能性需求
-- 处理 `[latexmath]` 块、`latexmath::` 块宏与 `latexmath:` 内联宏，仅使用 `BlockProcessor`、`BlockMacroProcessor`、`InlineMacroProcessor`。
+- 处理 `[latexmath]` 块 与 `latexmath:` 内联宏，仅使用 `BlockProcessor` 与 `InlineMacroProcessor`；显式不支持 `latexmath::` 块宏（宪法 P1）。
 - 支持 `pdflatex`、`xelatex`、`lualatex`、`tectonic` 等编译器，允许按元素覆盖。
 - 支持输出 `pdf` / `svg` / `png`，自动对接 `imagesdir` / `imagesoutdir` 与资源基名策略。
 - 缓存渲染结果，缓存键需囊括内容、模式、格式、引擎、preamble、工具链及选项。
@@ -44,7 +46,7 @@ asciidoctor-latexmath 为 Asciidoctor 提供离线 `latexmath` 渲染能力，�
 
 1. **入口层** —— 扩展注册与共享依赖注入；
 2. **配置与建造层** —— 解析属性、构建渲染器；
-3. **处理器层** —— 块、块宏、内联 Processor 捕获 AST；
+3. **处理器层** —— 块与内联 Processor 捕获 AST（无块宏，遵循宪法 P1）；
 4. **请求层** —— 构造 `RenderRequest` 并计算缓存签名；
 5. **渲染抽象层** —— 组合、包装 Renderer；
 6. **具体渲染器层** —— 调用外部命令完成格式转换。
@@ -99,12 +101,6 @@ package "Asciidoctor::Latexmath" {
     -builder : RendererBuilder
   }
 
-  class LatexmathBlockMacroProcessor {
-    +process(parent, target, attrs) : Asciidoctor::Block
-    -config : Configuration
-    -builder : RendererBuilder
-  }
-
   class LatexmathBlockProcessor {
     +process(parent, reader, attrs) : Asciidoctor::Block
     -config : Configuration
@@ -114,12 +110,11 @@ package "Asciidoctor::Latexmath" {
   ' ====== Layer 3: Request ======
   class RequestFactory {
     +from_inline(parent, target, attrs, cfg) : RenderRequest
-    +from_block_macro(parent, target, attrs, cfg) : RenderRequest
     +from_block(parent, reader, attrs, cfg) : RenderRequest
   }
 
   class RenderRequest {
-    +mode() : Symbol            ' :inline | :macro | :block
+    +mode() : Symbol            ' :inline | :block
     +payload() : String         ' expanded LaTeX source
     +format() : Symbol          ' :svg | :png | :pdf
     +options() : Hash           ' preamble/ppi/engine overrides
@@ -180,7 +175,6 @@ package "Asciidoctor::Latexmath" {
   ' Composition/ownership from top to lower layers
   ExtensionRegistry *----> RendererBuilder
   ExtensionRegistry *----> LatexmathInlineMacroProcessor
-  ExtensionRegistry *----> LatexmathBlockMacroProcessor
   ExtensionRegistry *----> LatexmathBlockProcessor
 
   ' Registry knows config & cache
@@ -189,12 +183,10 @@ package "Asciidoctor::Latexmath" {
 
   ' Processors depend on Builder
   LatexmathInlineMacroProcessor ----down----> RendererBuilder
-  LatexmathBlockMacroProcessor ----down----> RendererBuilder
   LatexmathBlockProcessor ----down----> RendererBuilder
 
   ' Processors create requests
   LatexmathInlineMacroProcessor ---down---> RequestFactory
-  LatexmathBlockMacroProcessor ---down---> RequestFactory
   LatexmathBlockProcessor ---down---> RequestFactory
 
   RequestFactory ---right---> RenderRequest
@@ -269,9 +261,9 @@ package "Asciidoctor::Latexmath" {
 
 ### Layer 2 — Processors
 - `LatexmathBlockProcessor`：构造 `Asciidoctor::Block` 结果，支持 `[%nocache]`、`options="keep-artifacts"` 等开关。
-- `LatexmathBlockMacroProcessor`：桥接 `latexmath::target[]` 语法，复用块属性解析。
 - `LatexmathInlineMacroProcessor`：输出内联节点，必要时将目标资源封装成 data URI。
-- 三者均不使用 `TreeProcessor`，符合约束。
+- 不实现 BlockMacroProcessor；`latexmath::` 语法被忽略或记录一次警告（与 Clarifications 一致）。
+- 两类 Processor 均不使用 `TreeProcessor`，符合约束。
 
 ### Layer 3 — RequestFactory & RenderRequest
 - 将 Asciidoctor 属性映射为请求选项（preamble、engine、format、cache-dir、png dpi）。
@@ -335,7 +327,7 @@ package "Asciidoctor::Latexmath" {
 
 ## 开发迭代建议
 
-1. **MVP**：实现 `ExtensionRegistry`、三类 Processor、`Configuration`、`RendererBuilder`、`PdflatexRenderer` + `Pdf2SvgRenderer` + `CachingRenderer`，完成 SVG 基线。
+1. **MVP**：实现 `ExtensionRegistry`、两类 Processor、`Configuration`、`RendererBuilder`、`PdflatexRenderer` + `Pdf2SvgRenderer` + `CachingRenderer`，完成 SVG 基线。
 2. **PNG 支持**：接入 `latexmath-png-tool` 探测与管线，验证 DPI 处理与缓存签名。
 3. **诊断增强**：落地 metadata JSON、统计指标、`keep-artifacts` 文件保留策略。
 4. **生态优化**：补充 README、示例、CI 检查；探索 MathJax fallback 与失败后的 degrade 行为。
