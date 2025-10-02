@@ -76,9 +76,10 @@ When creating this spec from a user prompt:
 - Q: 当文档设置 `:stem: latexmath` 时，对 `stem:[...]` 内联宏与 `[stem]` 块应采用何种语义? → A: 完全别名（Option A）：`stem:[...]` / `[stem]` 直接视为 `latexmath:[...]` / `[latexmath]`，共享属性解析、缓存键（仍仅区分块 vs 内联，不区分 stem/latexmath 入口名）、统计与错误处理；不引入新入口类型维度；仅在 `:stem: latexmath` 时启用。
  - Q: 是否要在 v1 即刻引入可量化的性能验收阈值（用于自动化性能回归测试）？ → A: 选 C（继续延后数值化；维持“记录基准不设硬门槛”策略；沿用既有性能 Clarification 与 FR-042 触发后续硬阈值化条件，不新增 MUST 数值约束；取代最早期临时 Option E 描述）。
  - Q: 同时存在 dvisvgm 与 pdf2svg 时 SVG 默认转换工具优先级？ → A: 选 A：优先 dvisvgm（使用 `dvisvgm --pdf` 从 PDF 转 SVG；不走 DVI 流程）；缺少 dvisvgm 时回退 pdf2svg；不并行尝试；未来可考虑添加 `svg-tool=` 以显式覆写。
- - Q: tectonic 引擎在需要动态获取缺失包时的网络策略？ → A: 不特殊处理；扩展不检测 / 拦截 tectonic 在线包下载；tectonic 视为普通编译引擎；用户通过 `pdflatex=` 或文档级 `:latexmath-pdflatex:` 指定使用哪种引擎（含传入值为 `tectonic`）；若需完全离线可复现需用户自行预缓存或改用传统引擎；缓存键不包含动态下载包列表，仅含工具版本签名（见 FR-011）。
+ - Q: tectonic 引擎在需要动态获取缺失包时的网络策略？ → A: 不特殊处理；扩展不检测 / 拦截 tectonic 在线包下载；tectonic 视为普通编译引擎；用户通过 `pdflatex=` 或文档级 `:latexmath-pdflatex:` 指定使用哪种引擎（含传入值为 `tectonic`）；若需完全离线可复现需用户自行预缓存或改用传统引擎；缓存键既不包含动态下载包列表，也不包含工具/引擎名称或版本（见 FR-011 决策）。
  - Q: 引擎选择与 pdflatex 命令覆写优先级策略？ → A: 文档级 `:latexmath-pdflatex:` 优先，其次全局 `:pdflatex:`，元素级 `pdflatex=` 覆写二者；默认基线命令 `pdflatex -interaction=nonstopmode -file-line-error`；若用户提供的任何一层命令串未包含 `-interaction=` 子串则自动追加 `-interaction=nonstopmode`；未包含 `-file-line-error` 则追加 `-file-line-error`；两者判断独立且只追加缺失项；追加顺序固定：先 `-interaction=nonstopmode` 后 `-file-line-error`；若命令串已包含相应片段（任意位置）则不重复；该自动追加仅适用于 `pdflatex`；其它引擎单独澄清见下一条。
  - Q: 其它引擎 (xelatex / lualatex / tectonic) 的命令解析与自动附加策略？ → A: 选 B：`xelatex` 与 `lualatex` 采用与 pdflatex 等价的分层与双标志自动追加策略（检测并追加 `-interaction=nonstopmode` 与 `-file-line-error`，顺序同 pdflatex；已存在任一则不重复追加）；`tectonic` 原样执行（不追加这两个标志）；三类引擎均支持元素级 `<engine>=`、文档级 `:latexmath-<engine>:`、全局 `:<engine>:` 分层；默认命令：`xelatex -interaction=nonstopmode -file-line-error`、`lualatex -interaction=nonstopmode -file-line-error`、`tectonic`；未检测到 `<engine>=` / `:latexmath-<engine>:` / `:<engine>:` 时回退默认；tectonic 跳过自动追加逻辑。
+- Q: 缓存键中“工具版本签名”与引擎/转换工具差异是否纳入？ → A: 选 C：不记录任何参与工具/引擎版本，也不区分编译引擎与转换/PNG/SVG 转换工具名称；因此 pdflatex ↔ xelatex 等切换或 dvisvgm ↔ pdf2svg 切换不触发缓存失效（最大化命中）；风险：不同工具链可能产出细节差异（字体嵌入、警告、分辨率）需由用户避免在同一构建中混用；未来若出现兼容性问题将通过新增属性（例如 `:latexmath-strict-cache:`）启用严格模式而不破坏默认。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -117,7 +118,7 @@ When creating this spec from a user prompt:
 - **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。若该 16 字符截断产生与不同内容/配置的另一表达式基名冲突（极低概率），在写入阶段检测：追加 `-1`,`-2` 递增直到不冲突，并记录单次 WARN；递增后基名不再回溯修改缓存键（缓存键使用完整 SHA256）。
-- **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、引擎类型、preamble 哈希、工具版本签名、PPI、入口类型（块/内联）、扩展版本；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称（避免相同表达式重复渲染）。
+ - **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、preamble 哈希、PPI、入口类型（块/内联）、扩展版本；不包含编译引擎 / 转换 / PNG 工具的名称或版本（参见 Clarifications 2025-10-02 工具版本签名决策）；因此在同一表达式上切换引擎（pdflatex↔xelatex↔lualatex↔tectonic）或 SVG/PNG 转换工具（dvisvgm↔pdf2svg，pdftoppm↔magick↔gs）不会触发缓存失效；用户若需强制重渲染需修改 preamble、格式或手动清理缓存；未来若引入严格模式将新增属性而不改变默认键组成；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称。
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
 - **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
@@ -127,7 +128,7 @@ When creating this spec from a user prompt:
 - **FR-017**: MUST 默认禁止潜在危险的外部命令执行（无显式允许时不启用 shell escape）。
 - **FR-018**: MUST 为 PNG 输出应用 PPI（≥72 且 ≤600）范围校验; 超出时报错。
 - **FR-019**: MUST 对不支持的格式、属性值、工具名给出枚举提示信息。
-- **FR-020**: MUST 在首次加载时检测可用工具并缓存结果，避免重复探测影响性能。
+ - **FR-020**: MUST 在首次加载时检测可用工具并缓存结果，避免重复探测影响性能；该检测仅确认可执行存在与可运行性，不解析或记录版本号（与 FR-011 决策一致）。
 - **FR-021**: MUST 在启用 `keep-artifacts` 时保留 `.tex`、`.log`、中间 PDF 至指定 artifacts 目录。
 - **FR-022**: MUST 可统计（可选日志级别）渲染次数、缓存命中次数、平均渲染耗时。统计输出契约 (MIN)：当日志级别≥info 且本次会话 renders+cache_hits>0 时仅输出 1 行：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`；四字段与顺序固定；`avg_render_ms`、`avg_hit_ms` 为四舍五入整数毫秒；无命中时 `avg_hit_ms=0`；不得添加新字段；低于 info 不输出；多次调用扩展（多文档）可各自输出一行。
 - **FR-023**: MUST 在超时（默认 120s）后终止外部进程并报告超时（含建议调高/简化公式）。
@@ -138,7 +139,7 @@ When creating this spec from a user prompt:
 - **FR-028**: MUST 允许在同一文档中混用不同输出格式；彼此缓存隔离。
 - **FR-029**: MUST 正确处理含 Unicode 字符（通过非 ASCII 公式用例验证）。
 - **FR-030**: SHOULD 在工具缺失时建议替代（如缺少 `dvisvgm` → 提示使用 `pdf2svg` 或更换目标格式）。
-- **FR-031**: SHOULD 在启动时输出一次工具签名摘要（可禁用）。
+- **FR-031**: SHOULD 在启动时输出一次工具可用性摘要（可禁用）：仅列出检测到的可用 / 缺失工具名称（不解析版本号），缺失工具附带简短提示；与 FR-011/FR-020 一致不采集版本信息。
 - **FR-032**: SHOULD 为重复出现的大型公式记录单独耗时便于性能诊断。
 - **FR-033**: SHOULD（未来扩展）支持独立于全局 `:data-uri:` 的细粒度内联策略；v1 不提供专有 data URI 开关，仅继承 Asciidoctor 核心 `:data-uri:` 行为并通过绝对路径辅助核心内联。
 - **FR-034**: SHOULD 允许用户自定义渲染超时：文档级属性 `:latexmath-timeout:` （正整数秒，默认 120），元素级属性 `timeout=` 可覆写当前表达式；非法或非正整数值应报错并回退默认。
@@ -163,23 +164,23 @@ When creating this spec from a user prompt:
    分节之间以单个空行分隔；仅进行 HTML 必要转义（`&`, `<`, `>` 等）；不额外截断；不写入缓存；不计入成功渲染统计；未来若需截断/精简将通过新增属性控制并保持向后兼容。
 
 - **FR-047**: MUST 对 `format=svg` 的转换采用确定性工具优先策略：启动时探测可用工具（结合 FR-020），若存在 `dvisvgm` 则使用 `dvisvgm --pdf`（始终通过 PDF 中间产物转换为 SVG；不依赖 DVI 流程）；若缺少 `dvisvgm` 且存在 `pdf2svg` 则使用 `pdf2svg`；二者皆缺失时按 FR-004 生成缺失工具错误；当首选工具成功时不得回退或尝试次级工具；本策略不引入并行尝试；未来若需用户显式覆写将新增属性（例如 `svg-tool=`）而不改变该默认顺序。
- - **FR-048**: MUST 将 `tectonic` 视为普通可选编译引擎之一，不引入专有网络策略：扩展不阻断其在线按需包获取，也不强制离线；未缓存包导致的首次网络下载行为不写入或修改缓存键（缓存键中已有工具版本签名满足区分，见 FR-011）；若在严格离线 / 断网环境构建失败应提示用户改用其它引擎或预先本地预热 tectonic 缓存；网络失败（超时、无法解析域名等）按引擎失败处理（FR-014/FR-045）；未来如需对 tectonic 网络进行策略化（例如强制离线模式）将新增独立属性而不破坏默认兼容。
+ - **FR-048**: MUST 将 `tectonic` 视为普通可选编译引擎之一，不引入专有网络策略：扩展不阻断其在线按需包获取，也不强制离线；未缓存包导致的首次网络下载行为不写入或修改缓存键（缓存键不包含工具/引擎名称或版本，见 FR-011）；若在严格离线 / 断网环境构建失败应提示用户改用其它引擎或预先本地预热 tectonic 缓存；网络失败（超时、无法解析域名等）按引擎失败处理（FR-014/FR-045）；未来如需对 tectonic 网络进行策略化（例如强制离线模式）将新增独立属性而不破坏默认兼容；切换至/离开 tectonic 不会使既有缓存失效（风险已在 Clarifications 阐述）。
  - **FR-049**: MUST 解析 `pdflatex` 基线命令时采用层级优先级：元素级 `pdflatex=` > 文档级 `:latexmath-pdflatex:` > 全局 `:pdflatex:` > 默认 `pdflatex -interaction=nonstopmode -file-line-error`；解析出首个可用命令串后执行规范化：
     1. 若不含子串 `-interaction=`（任意形式，如 `-interaction=batchmode` 亦视为已含）则追加 `-interaction=nonstopmode`；
     2. 再检查是否含 `-file-line-error`；若缺失追加 `-file-line-error`；
     3. 追加顺序固定（interaction 优先，file-line-error 次之），确保生成命令稳定；
     4. 只追加缺失标志，不改写已存在值；
-    5. 追加不改变缓存键（缓存键仅含工具版本签名等 FR-011 字段），视为命令规范化；
+    5. 追加不改变缓存键（见 FR-011 键组成），视为命令规范化；
     6. 若用户命令包含管道/重定向亦整体扫描子串；
     7. 该规范化当前仅适用于 `pdflatex`（其它引擎规则见 FR-050）。
- - **FR-050**: MUST 对 `xelatex` 与 `lualatex` 采用与 FR-049 等价的分层与双标志自动附加逻辑：元素级 `xelatex=` / `lualatex=` > 文档级 `:latexmath-xelatex:` / `:latexmath-lualatex:` > 全局 `:xelatex:` / `:lualatex:` > 默认 `xelatex -interaction=nonstopmode -file-line-error` / `lualatex -interaction=nonstopmode -file-line-error`；规范化流程：若缺少 `-interaction=` 则追加 `-interaction=nonstopmode`，随后若缺少 `-file-line-error` 再追加；顺序与 FR-049 一致；仅追加缺失项，不改写已有；追加不改变缓存键；`tectonic` 层级：元素级 `tectonic=` > 文档级 `:latexmath-tectonic:` > 全局 `:tectonic:` > 默认 `tectonic`，无任何自动追加（参见 FR-048）。
+ - **FR-050**: MUST 对 `xelatex` 与 `lualatex` 采用与 FR-049 等价的分层与双标志自动附加逻辑：元素级 `xelatex=` / `lualatex=` > 文档级 `:latexmath-xelatex:` / `:latexmath-lualatex:` > 全局 `:xelatex:` / `:lualatex:` > 默认 `xelatex -interaction=nonstopmode -file-line-error` / `lualatex -interaction=nonstopmode -file-line-error`；规范化流程：若缺少 `-interaction=` 则追加 `-interaction=nonstopmode`，随后若缺少 `-file-line-error` 再追加；顺序与 FR-049 一致；仅追加缺失项，不改写已有；追加不改变缓存键（见 FR-011）；`tectonic` 层级：元素级 `tectonic=` > 文档级 `:latexmath-tectonic:` > 全局 `:tectonic:` > 默认 `tectonic`，无任何自动追加（参见 FR-048）；切换上述任意引擎不使缓存失效（Clarifications 说明风险与理由）。
 
 
 ### Key Entities *(include if feature involves data)*
 - **Math Expression**: 用户在文档中的原始 LaTeX 公式文本（块/宏/内联）。
 - **Rendering Request**: 一次独立渲染操作的抽象，绑定表达式、格式、工具链选择与归一化属性集合。
 - **Output Artifact**: 最终产物文件 (svg/pdf/png) 及可选调试文件集合。
-- **Cache Entry**: 由缓存键映射到产物路径与元数据（命中次数、生成时间、工具签名摘要）。
+- **Cache Entry**: 由缓存键映射到产物路径与元数据（命中次数、生成时间）；不存储或解析工具/引擎版本或名称（见 Clarifications 工具版本签名决策）。
 - **Toolchain Configuration**: 用户声明的引擎与转换工具组合；决定管线步骤。
 - **Statistics Record**: 可选聚合指标（渲染次数、平均耗时、命中率）。
 
