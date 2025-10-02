@@ -74,6 +74,7 @@ When creating this spec from a user prompt:
 - Q: 单个公式渲染失败（编译/工具错误）时文档处理策略? → A: 可配置：文档/元素属性 `latexmath-on-error`（或 `on-error=`）取值 `log|abort`；默认 `log`（继续其它公式并插入占位，整体构建成功）；`abort` 表示 fail-fast（立即终止整体失败）。块级属性覆写文档级；不支持自动重试；未识别值时报错并回落默认 `log`。
 
 - Q: 失败占位（on-error=log）HTML 呈现策略? → A: 使用 `<pre class="highlight latexmath-error">`；内部顺序包含：1) 简短错误描述 2) 执行命令 3) stdout 4) stderr 5) 原始 AsciiDoc 文本 6) 生成的 LaTeX 源；该占位不缓存、不写入统计 renders、仅在策略=log 且单表达式失败时生成；保留换行与缩进供诊断；不截断（未来如需截断将引入独立属性并保持向后兼容）。
+- Q: 当文档设置 `:stem: latexmath` 时，对 `stem:[...]` 内联宏与 `[stem]` 块应采用何种语义? → A: 完全别名（Option A）：`stem:[...]` / `[stem]` 直接视为 `latexmath:[...]` / `[latexmath]`，共享属性解析、缓存键（仍仅区分块 vs 内联，不区分 stem/latexmath 入口名）、统计与错误处理；不引入新入口类型维度；仅在 `:stem: latexmath` 时启用。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -85,6 +86,7 @@ When creating this spec from a user prompt:
 2. **Given** 用户请求 `:latexmath-format: svg` 但系统缺少 `dvisvgm` 与 `pdf2svg`, **When** 执行构建, **Then** 构建失败并输出清晰错误: 缺失的命令列表、建议安装方式、指向禁用或切换格式的提示, 不产生半成品文件。
 3. **Given** 用户在块级添加 `[%nocache]` 与 `format=png, ppi=200`, **When** 构建两次, **Then** 该块两次都重新渲染且生成 PNG (200 PPI) 文件名保持一致, 其它未加 `%nocache` 的表达式复用缓存。
 4. **Given** 并行构建 (两个独立进程) 渲染同一公式文本, **When** 同时启动, **Then** 结果只有一个缓存条目被写入 (无损坏 / 无临时文件泄漏) 且两个进程均成功引用该产物。
+5. **Given** 文档设置 `:stem: latexmath` 且包含 `stem:[a^2+b^2=c^2]` 与 `latexmath:[a^2+b^2=c^2]`, **When** 构建两次, **Then** 该公式仅首轮渲染一次（第二轮与两种写法均缓存命中），两种写法引用同一产物文件，无重复文件与无重复统计计数。
 
 ### Edge Cases
 - 请求不支持的格式 (如 `format=gif`) → 明确错误并列出受支持集合。
@@ -96,11 +98,12 @@ When creating this spec from a user prompt:
 - 超时：外部工具长时间挂起。
 - Windows / Linux 路径差异 (相对路径解析)。
 - 内联公式选择 data URI (未来扩展) 与默认文件引用并存。
+- `:stem: latexmath` 下混用 `latexmath:` 与 `stem:` 形式（应引用同一缓存与产物，不重复渲染）。
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
-- **FR-001**: MUST 支持两种入口语法：`[latexmath]` 块 与 `latexmath:[...]` 内联宏（包含文档属性与元素属性覆写）；MUST NOT 支持 `latexmath::[]` 块宏形式。
+- **FR-001**: MUST 支持入口语法：`[latexmath]` 块、`latexmath:[...]` 内联宏；当文档设置 `:stem: latexmath` 时 MUST 以完全别名方式同等处理 `[stem]` 块与 `stem:[...]` 内联（无额外入口类型区分，属性/缓存/统计/错误处理完全复用）；MUST NOT 支持 `latexmath::[]` 块宏形式。
 - **FR-002**: MUST 依据文档或元素属性渲染为 `svg|pdf|png` 三种格式之一；默认 `svg`。
 - **FR-003**: MUST 允许用户通过属性选择编译引擎 (pdflatex/xelatex/lualatex/tectonic)。
 - **FR-004**: MUST 在缺少所需工具链时以可操作错误终止，列出缺失命令与建议解决方式。
@@ -110,7 +113,7 @@ When creating this spec from a user prompt:
 - **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。若该 16 字符截断产生与不同内容/配置的另一表达式基名冲突（极低概率），在写入阶段检测：追加 `-1`,`-2` 递增直到不冲突，并记录单次 WARN；递增后基名不再回溯修改缓存键（缓存键使用完整 SHA256）。
-- **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、引擎类型、preamble 哈希、工具版本签名、PPI、入口类型（块/内联）、扩展版本。
+- **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、引擎类型、preamble 哈希、工具版本签名、PPI、入口类型（块/内联）、扩展版本；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称（避免相同表达式重复渲染）。
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
 - **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
