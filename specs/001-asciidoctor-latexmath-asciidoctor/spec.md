@@ -81,6 +81,13 @@ When creating this spec from a user prompt:
  - Q: 其它引擎 (xelatex / lualatex / tectonic) 的命令解析与自动附加策略？ → A: 选 B：`xelatex` 与 `lualatex` 采用与 pdflatex 等价的分层与双标志自动追加策略（检测并追加 `-interaction=nonstopmode` 与 `-file-line-error`，顺序同 pdflatex；已存在任一则不重复追加）；`tectonic` 原样执行（不追加这两个标志）；三类引擎均支持元素级 `<engine>=`、文档级 `:latexmath-<engine>:`、全局 `:<engine>:` 分层；默认命令：`xelatex -interaction=nonstopmode -file-line-error`、`lualatex -interaction=nonstopmode -file-line-error`、`tectonic`；未检测到 `<engine>=` / `:latexmath-<engine>:` / `:<engine>:` 时回退默认；tectonic 跳过自动追加逻辑。
 - Q: 缓存键中“工具版本签名”与引擎/转换工具差异是否纳入？ → A: 选 C：不记录任何参与工具/引擎版本，也不区分编译引擎与转换/PNG/SVG 转换工具名称；因此 pdflatex ↔ xelatex 等切换或 dvisvgm ↔ pdf2svg 切换不触发缓存失效（最大化命中）；风险：不同工具链可能产出细节差异（字体嵌入、警告、分辨率）需由用户避免在同一构建中混用；未来若出现兼容性问题将通过新增属性（例如 `:latexmath-strict-cache:`）启用严格模式而不破坏默认。
 
+### Session 2025-10-02 (Supplemental Clarifications)
+- Q: 显式目标基名中包含路径分隔符 / `..` 的安全与越界策略？ → A: 选 原问题 Option “不处理，信任用户” + 二级子选 A (= 完全放开)。即：对块首位置属性提供的显式基名不做任何清洗 / 过滤 / 沙箱；允许包含相对子目录与任意数量的 `..` 段；路径按相对 `imagesoutdir` 解析后可逃逸其根目录（写入到其上级乃至外部目录）。该决策依赖 FR-036 的“受控仓库可信”模型；README 需添加 SECURITY NOTE（实现阶段）；FR-008 / FR-009 添加例外说明；自动生成的哈希基名（FR-010）仍强制落在 `imagesoutdir` 内，不受此例外影响。
+- Q: 显式基名含扩展且与目标格式不一致如何处理？ → A: 规则三分：1) 若最后一个扩展（末尾 `.` 之后子串）在 {`svg`,`pdf`,`png`} 且与所选 `format` 相同 → 原样保留；2) 若在集合内但与所选 `format` 不同 → 直接“替换”末尾扩展为目标格式（例如 `eq1.svg` + `format=png` → `eq1.png`），记录 WARN（一次表达式一次）；3) 若不在集合（如 `eq1.formula`）→ 保留原扩展并“追加”正确扩展形成双扩展（`eq1.formula.png`），记录 WARN。结果文件名（替换或追加后的）参与冲突检测与原子写；缓存键不受显式扩展差异影响（仍由 FR-011 组成）。
+- Q: 多外部步骤（编译 + 转换）如何应用超时预算？ → A: 选 D：单表达式共享统一墙钟预算 N 秒（默认 120，属性见 FR-034）。计时起点 = 启动首个外部进程前；每步开始前检查剩余预算；单步运行时若累计耗尽（剩余 ≤0 或本步耗时 > 剩余）即判定超时；后续步骤不再执行。剩余时间递减直至 0；不为每步重置（区别于 per-step 模式）。
+- Q: 超时触发的外部进程终止策略？ → A: 选 B：对当前“主”外部进程先发送 SIGTERM，等待固定 2s（未来可参数化），仍存活再 SIGKILL；仅针对该 PID，不向整个进程组广播（不额外 setsid）。Windows 环境使用强制终止 API。日志需包含 `timeout=1` 标记与已消耗时间。此策略整合进 FR-023。
+- Q: 目标产物文件路径已存在（且本次不是缓存命中）时处理策略？ → A: 选 A：无条件覆盖（即使该文件并非由本扩展先前生成），采用“写临时 → 原子重命名”流程；不做现有内容哈希比较，也不将其视为缓存命中；记录 debug 级日志。表达式间显式同名冲突仍由 FR-040 抑制（在写入阶段前）。策略新增 FR-051。
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### Primary User Story
@@ -115,8 +122,8 @@ When creating this spec from a user prompt:
 - **FR-005**: MUST 在同一内容+配置组合下重复构建时命中缓存且不重复调用外部命令（命中率可统计）。
 - **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`xelatex=`、`lualatex=`、`tectonic=`、`dvisvgm=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 早期草案命名弃用（可作为别名接受但不在文档公开）。
 - **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。
-- **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）。
-- **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。
+- **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）；但当用户通过位置属性显式提供基名且其中包含相对路径段（可含子目录或 `..` 段）时，按 Supplemental Clarifications 决策：不做清洗 / 限制；路径相对 `imagesoutdir` 解析后可逃逸该目录（显式覆写例外）；自动生成哈希基名（FR-010）不享受此例外，始终落在 `imagesoutdir` 内。
+- **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。显式基名允许包含路径分隔符与任意数量 `..` 段（不清洗，不拒绝）；当基名包含扩展：若末尾扩展 ∈ {svg,pdf,png} 且与目标格式匹配 → 保留；若末尾扩展 ∈ {svg,pdf,png} 但与目标格式不匹配 → “替换”该扩展为目标格式（WARN）；若末尾扩展不在集合 → 追加正确扩展（形成双扩展，WARN）。WARN 级别日志应指明原始名称与最终采用名称。冲突检测与缓存键逻辑基于最终文件名与 FR-011 组成。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。若该 16 字符截断产生与不同内容/配置的另一表达式基名冲突（极低概率），在写入阶段检测：追加 `-1`,`-2` 递增直到不冲突，并记录单次 WARN；递增后基名不再回溯修改缓存键（缓存键使用完整 SHA256）。
  - **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、preamble 哈希、PPI、入口类型（块/内联）、扩展版本；不包含编译引擎 / 转换 / PNG 工具的名称或版本（参见 Clarifications 2025-10-02 工具版本签名决策）；因此在同一表达式上切换引擎（pdflatex↔xelatex↔lualatex↔tectonic）或 SVG/PNG 转换工具（dvisvgm↔pdf2svg，pdftoppm↔magick↔gs）不会触发缓存失效；用户若需强制重渲染需修改 preamble、格式或手动清理缓存；未来若引入严格模式将新增属性而不改变默认键组成；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称。
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
@@ -131,7 +138,7 @@ When creating this spec from a user prompt:
  - **FR-020**: MUST 在首次加载时检测可用工具并缓存结果，避免重复探测影响性能；该检测仅确认可执行存在与可运行性，不解析或记录版本号（与 FR-011 决策一致）。
 - **FR-021**: MUST 在启用 `keep-artifacts` 时保留 `.tex`、`.log`、中间 PDF 至指定 artifacts 目录。
 - **FR-022**: MUST 可统计（可选日志级别）渲染次数、缓存命中次数、平均渲染耗时。统计输出契约 (MIN)：当日志级别≥info 且本次会话 renders+cache_hits>0 时仅输出 1 行：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`；四字段与顺序固定；`avg_render_ms`、`avg_hit_ms` 为四舍五入整数毫秒；无命中时 `avg_hit_ms=0`；不得添加新字段；低于 info 不输出；多次调用扩展（多文档）可各自输出一行。
-- **FR-023**: MUST 在超时（默认 120s）后终止外部进程并报告超时（含建议调高/简化公式）。
+- **FR-023**: MUST 对单个表达式应用“统一墙钟超时”机制：默认 120s（文档级 `:latexmath-timeout:` 或元素级 `timeout=` 覆写，见 FR-034），预算从首次外部进程启动前开始计时；多个外部步骤（编译、SVG/PNG 转换等）共享同一剩余预算；任一步骤开始前若剩余 ≤0 或执行中耗尽则判定超时。超时时：对当前主子进程发送 SIGTERM，等待 2s，仍存活再 SIGKILL（Windows 使用强制终止）；不终止整组/后代进程；记录包含 `timeout=1`、已耗时、剩余=0 的日志，并依据 FR-045 失败策略生成占位或 fail-fast。建议信息包括：提高 timeout、精简公式、检查工具死锁。该行为不加入缓存键（FR-011）。
 - **FR-024**: MUST 对内联公式输出参考（文件或未来 data URI）；默认文件引用。
 - **FR-025**: MUST 不使用 TreeProcessor 或依赖 Mathematical；若检测到冲突（同时启用 mathematical）提示优先级与迁移。
 - **FR-026**: MUST 遵循宪章 TDD：拒绝在无对应失败测试前合入新行为（通过 CI Gate 控制）。
@@ -174,6 +181,8 @@ When creating this spec from a user prompt:
     6. 若用户命令包含管道/重定向亦整体扫描子串；
     7. 该规范化当前仅适用于 `pdflatex`（其它引擎规则见 FR-050）。
  - **FR-050**: MUST 对 `xelatex` 与 `lualatex` 采用与 FR-049 等价的分层与双标志自动附加逻辑：元素级 `xelatex=` / `lualatex=` > 文档级 `:latexmath-xelatex:` / `:latexmath-lualatex:` > 全局 `:xelatex:` / `:lualatex:` > 默认 `xelatex -interaction=nonstopmode -file-line-error` / `lualatex -interaction=nonstopmode -file-line-error`；规范化流程：若缺少 `-interaction=` 则追加 `-interaction=nonstopmode`，随后若缺少 `-file-line-error` 再追加；顺序与 FR-049 一致；仅追加缺失项，不改写已有；追加不改变缓存键（见 FR-011）；`tectonic` 层级：元素级 `tectonic=` > 文档级 `:latexmath-tectonic:` > 全局 `:tectonic:` > 默认 `tectonic`，无任何自动追加（参见 FR-048）；切换上述任意引擎不使缓存失效（Clarifications 说明风险与理由）。
+
+- **FR-051**: MUST 当渲染需写入产物且该目标文件路径已存在而当前不是缓存命中（即需实际渲染）时，无条件覆盖：使用临时文件写入后原子重命名替换旧文件；不计算旧文件哈希、不提示冲突、不计为 cache hit；记录 debug 级日志（含旧文件存在的提示）。此策略不影响 FR-040（仅针对同一文档多表达式显式同名冲突的早期检测）。
 
 
 ### Key Entities *(include if feature involves data)*
