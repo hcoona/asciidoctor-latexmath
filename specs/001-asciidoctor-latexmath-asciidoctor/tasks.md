@@ -13,20 +13,20 @@ All tests (contract + integration) MUST be written & red before any implementati
 - User Stories / Acceptance (Primary + 4 scenarios) → T008–T012 (integration specs)
 
 ## Phase 3.1: Setup
-- [ ] T001 Create project skeleton (directories, `lib/asciidoctor-latexmath.rb`, `lib/asciidoctor/latexmath/version.rb`) ensuring no BlockMacro registration.
-- [ ] T002 Add RSpec configuration & `spec/spec_helper.rb` with basic helper utilities (temp dir, tool stubs).
+- [ ] T001 Create project skeleton (directories, `lib/asciidoctor-latexmath.rb`, `lib/asciidoctor/latexmath/version.rb`) ensuring no BlockMacro registration (enforces P1) and explicit absence of BlockMacro processor.
+- [ ] T002 Add RSpec configuration & `spec/spec_helper.rb` with basic helper utilities (temp dir, tool stubs) AND integrate Aruba (`require 'aruba/rspec'`) setting up per-example isolated working dir & env (FR-041). Provide helper to invoke `asciidoctor` within sandbox.
 - [ ] T003 [P] Add StandardRB config `.standard.yml` & Rake task `lint`.
 - [ ] T004 [P] Add CI workflow `.github/workflows/ci.yml` (runs lint + specs on Ruby 3.1, 3.2, 3.3).
 
 ## Phase 3.2: Tests First (Contracts & Integration)  (All must FAIL initially)
-- [ ] T005 [P] Contract spec for processors `spec/processors/processors_contract_spec.rb` (covers registration limits, alias warning, precedence outline).
+- [ ] T005 [P] Contract spec for processors `spec/processors/processors_contract_spec.rb` (registration limits, alias warning, precedence outline, no BlockMacro) – prepares for T028.
 - [ ] T006 [P] Contract spec for renderer pipeline `spec/rendering/pipeline_contract_spec.rb` (signature & stage ordering, timeout placeholder, determinism outline).
 - [ ] T007 [P] Contract spec for cache key & disk cache `spec/cache/cache_key_contract_spec.rb` (field ordering, atomic write expectations, tool version impact).
-- [ ] T008 [P] Integration spec: primary user story end-to-end `spec/integration/primary_story_spec.rb` (svg default caching expectations; mark pending details).
-- [ ] T009 [P] Integration spec: default svg caching reuse `spec/integration/svg_cache_hit_spec.rb` (renders once, second run hit metric expectation placeholder).
-- [ ] T010 [P] Integration spec: missing tool failure `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm + pdf2svg).
-- [ ] T011 [P] Integration spec: nocache png with ppi `spec/integration/nocache_png_spec.rb` (%nocache twice, format=png, ppi valid & out-of-range pending cases).
-- [ ] T012 [P] Integration spec: parallel build atomicity `spec/integration/concurrency_spec.rb` (two threads/process mocks, one artifact).
+- [ ] T008 [P] Integration spec (Aruba): primary user story end-to-end `spec/integration/primary_story_spec.rb` (svg default caching expectations; mark pending details) – asserts sandbox isolation (FR-041).
+- [ ] T009 [P] Integration spec (Aruba): default svg caching reuse `spec/integration/svg_cache_hit_spec.rb` (renders once, second run hit metric expectation placeholder) – ensures separate examples do not share state (FR-041).
+- [ ] T010 [P] Integration spec (Aruba): missing tool failure `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm + pdf2svg) – asserts temp dirs cleaned (FR-041, FR-004).
+- [ ] T011 [P] Integration spec (Aruba): nocache png with ppi `spec/integration/nocache_png_spec.rb` (%nocache twice, format=png, ppi valid & out-of-range pending cases) – validates no cache write & PPI validation (FR-018, FR-015, FR-041).
+- [ ] T012 [P] Integration spec (Aruba): parallel build atomicity `spec/integration/concurrency_spec.rb` (two sandboxed processes to same cache path) – asserts single artifact & no corruption (FR-013, FR-041).
 
 ## Phase 3.3: Core Models (Entity Stubs)  (Created after tests written, can run in parallel)
 - [ ] T013 [P] Stub `MathExpression` model `lib/asciidoctor/latexmath/math_expression.rb` (attributes, invariants TODO markers).
@@ -60,7 +60,7 @@ All tests (contract + integration) MUST be written & red before any implementati
 
 ## Phase 3.6: Polish & Performance
 - [ ] T037 [P] Performance smoke spec `spec/performance/render_perf_spec.rb` (skipped if tools missing) depends: T034.
-- [ ] T038 [P] Statistics logging spec `spec/integration/statistics_spec.rb` depends: T030,T033.
+- [ ] T038 [P] Statistics logging spec `spec/integration/statistics_spec.rb` depends: T030,T033. Validate MIN format (FR-022, FR-035): single line `latexmath stats: renders=R cache_hits=H avg_render_ms=X avg_hit_ms=Y`; no extra fields; quiet suppresses; repeated invocations not duplicated; avg rounding; hit=0 case.
 - [ ] T039 Update README attributes table & usage examples depends: T036.
 - [ ] T040 Update DESIGN.md removing BlockMacro references depends: T039.
 - [ ] T041 Add examples: `examples/block_svg.adoc`, `examples/png_cached.adoc`, `examples/inline_mix.adoc` depends: T029,T033.
@@ -117,11 +117,16 @@ Example Group E (Performance & Stats): T037 T038 T044
 - [ ] Lint/style task present (T003)
 - [ ] Determinism & performance tasks present (T037, T044)
 - [ ] Documentation & release tasks present (T039–T043)
+- [ ] Stats MIN format enforced (T038; FR-022/FR-035)
+- [ ] Aruba sandbox isolation validated (T008–T012; FR-041)
 
 ## Notes
 - Each task should result in at least one commit referencing TID (e.g., "T021: implement attribute resolver precedence chain").
 - Keep failing specs minimal initially; expand after core green to avoid over-specifying early.
 - Use pending blocks (`pending "..."`) where detailed behavior depends on later tasks to avoid brittle premature assertions.
+- Integration specs (T008–T012) must use Aruba for filesystem & env isolation (FR-041). Do NOT rely on user HOME or global cache location.
+- Statistics spec (T038) treats output format as immutable contract; any new field requires new FR & version bump.
+- Future performance hard thresholds (FR-042) can extend T037 or add a new task rather than altering T038.
 
 ---
 Based on Constitution v2.0.0 – see `.specify/memory/constitution.md`.
