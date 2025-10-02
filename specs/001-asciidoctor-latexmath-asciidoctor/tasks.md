@@ -1,98 +1,128 @@
-# Phase 2 Task Plan – asciidoctor-latexmath
+# Tasks: Asciidoctor Latexmath Offline Rendering Extension
 
-NOTE: Generated early per user instruction (plan.prompt override) although template normally defers until /tasks command.
+Input: Design documents from `specs/001-asciidoctor-latexmath-asciidoctor/`
+Prerequisites: plan.md (required), research.md, data-model.md, contracts/
 
 ## Legend
-[P] = Potentially parallel (order independent once predecessors done)
-[TDD] = Test-first task (write failing spec)
-[DOC] = Documentation related
-[REF] = Refactor / internal quality
-[SEC] = Security / safety
+[P] = Parallel-capable (different files, no unmet dependency)
+All tests (contract + integration) MUST be written & red before any implementation task that satisfies them (Principle P2).
 
-## Ordering (High-Level)
-1. Environment & scaffolding
-2. Interface & attribute contract specs (tests) [TDD]
-3. Core infrastructure (cache, tool detection) with specs
-4. Rendering pipeline skeleton → concrete stages
-5. Error handling & edge cases
-6. Documentation & examples
-7. Final consistency & release prep
+## Generation Sources
+- Contracts → T005–T007 (contract test specs)
+- Data Model (8 entities) → T013–T020 (model stub tasks)
+- User Stories / Acceptance (Primary + 4 scenarios) → T008–T012 (integration specs)
 
-## Task List
-1. [TDD] Add spec helper baseline & RSpec configuration (spec/spec_helper.rb) referencing Constitution v2.0.0.
-2. [TDD][P2] Write failing spec: attribute precedence (block vs doc vs default) – block overrides doc.
-3. [TDD] Failing spec: inline attribute precedence & parsing of `format=png, ppi=200`.
-4. [TDD] Failing spec: deprecated alias `cache-dir` logged once & normalized.
-5. [TDD] Failing spec: cache key changes when preamble changes.
-6. [TDD] Failing spec: cache key unchanged when format=svg and only PPI differs.
-7. [TDD] Failing spec: PPI out of range raises InvalidAttributeError.
-8. [TDD] Failing spec: conflict registry rejects differing content same explicit basename.
-9. [TDD] Failing spec: conflict registry allows identical signature duplicate.
-10. [TDD] Failing spec: missing required tool (dvisvgm for svg) errors early before rendering.
-11. [TDD] Failing spec: timeout triggers RenderTimeoutError and kills child process (mocked slow command).
-12. [TDD] Failing spec: nocache skips cache fetch & store.
-13. [TDD] Failing spec: keep-artifacts retains .tex & .log in artifacts dir.
-14. [TDD] Failing spec: atomic write concurrency (simulate parallel threads) results in single artifact.
-15. [TDD] Failing spec: signature includes tool versions (changing version invalidates hit).
-16. [TDD] Failing spec: explicit engine override per element.
-17. [TDD] Failing spec: unsupported format produces supported list message.
-18. [CODE] Implement module skeleton: `lib/asciidoctor-latexmath.rb` register processors (Block + Inline only) – empty bodies.
-19. [CODE] Implement attribute normalization & validation module (no rendering yet).
-20. [CODE] Implement ConflictRegistry with in-memory map + thread safety (Mutex).
-21. [CODE] Implement CacheKey class + DiskCache (fetch/store/with_lock) with atomic rename.
-22. [CODE] Implement ToolDetector: detect & capture versions for engines & converters.
-23. [CODE] Implement Renderer interfaces + Pipeline orchestrator (no actual system calls yet, return stub files).
-24. [REF] Integrate logging helper (levels info/debug/warn/error) with structured messages.
-25. [CODE][SEC] Implement PdflatexRenderer stage (generate temp .tex; run command; capture logs; honor timeout).
-26. [CODE] Implement PdfToSvgRenderer variants (dvisvgm or explicit pdf2svg) with selection logic.
-27. [CODE] Implement PdfToPngRenderer variants (pdftoppm/magick/gs) with PPI handling.
-28. [CODE] Wire pipeline builder: choose stages based on format & overrides; compute pipeline signature.
-29. [CODE] Implement caching wrapper: compute key, fetch, store on miss.
-30. [CODE] Implement processors: build RenderRequest, interact with cache/pipeline, create AST nodes.
-31. [TDD] Add determinism spec: identical content + attributes yields identical file checksum.
-32. [TDD] Add performance smoke spec (skipped in CI if tools missing) ensure average cold render < target threshold (configurable) for simple formula.
-33. [TDD] Add statistics spec: counts (rendered, cache hits) increment correctly.
-34. [REF] Remove any temporary stub code & verify all earlier failing specs now pass.
-35. [DOC] Update DESIGN.md removing BlockMacro references; sync with Constitution P1.
-36. [DOC] Update README attribute table to align with AsciidoctorLatexmathAttributes.md (no block macro column).
-37. [DOC] Add examples directory with sample `block-svg.adoc`, `block-png.adoc`, `inline-mixed.adoc`.
-38. [DOC] Update quickstart.md if adjustments from implementation.
-39. [CODE][SEC] Add input sanitation guard tests for command arg list (no injection of `;` etc.).
-40. [CODE] Implement one-time deprecation log for `cache-dir` alias.
-41. [TDD] Add test ensuring BlockMacro form `latexmath::[]` stays untouched + warning emitted.
-42. [REF] StandardRB / lint setup; apply formatting.
-43. [RELEASE] Add CHANGELOG entry, bump version (0.1.0), record constitution version & principles satisfied.
-44. [RELEASE] Tag & build gem (manual step outside automated tests).
+## Phase 3.1: Setup
+- [ ] T001 Create project skeleton (directories, `lib/asciidoctor-latexmath.rb`, `lib/asciidoctor/latexmath/version.rb`) ensuring no BlockMacro registration.
+- [ ] T002 Add RSpec configuration & `spec/spec_helper.rb` with basic helper utilities (temp dir, tool stubs).
+- [ ] T003 [P] Add StandardRB config `.standard.yml` & Rake task `lint`.
+- [ ] T004 [P] Add CI workflow `.github/workflows/ci.yml` (runs lint + specs on Ruby 3.1, 3.2, 3.3).
 
-## Parallelization Notes
-- Tasks 2–17 are spec authoring; can be parallelized by developer roles but must all be red before implementation tasks 18+.
-- Tasks 25–27 can proceed after 23; 28–30 depend on 25–27.
+## Phase 3.2: Tests First (Contracts & Integration)  (All must FAIL initially)
+- [ ] T005 [P] Contract spec for processors `spec/processors/processors_contract_spec.rb` (covers registration limits, alias warning, precedence outline).
+- [ ] T006 [P] Contract spec for renderer pipeline `spec/rendering/pipeline_contract_spec.rb` (signature & stage ordering, timeout placeholder, determinism outline).
+- [ ] T007 [P] Contract spec for cache key & disk cache `spec/cache/cache_key_contract_spec.rb` (field ordering, atomic write expectations, tool version impact).
+- [ ] T008 [P] Integration spec: primary user story end-to-end `spec/integration/primary_story_spec.rb` (svg default caching expectations; mark pending details).
+- [ ] T009 [P] Integration spec: default svg caching reuse `spec/integration/svg_cache_hit_spec.rb` (renders once, second run hit metric expectation placeholder).
+- [ ] T010 [P] Integration spec: missing tool failure `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm + pdf2svg).
+- [ ] T011 [P] Integration spec: nocache png with ppi `spec/integration/nocache_png_spec.rb` (%nocache twice, format=png, ppi valid & out-of-range pending cases).
+- [ ] T012 [P] Integration spec: parallel build atomicity `spec/integration/concurrency_spec.rb` (two threads/process mocks, one artifact).
 
-## Traceability
-| Task Range | Spec FR / Principle |
-|------------|---------------------|
-| 2–4 | FR-001, FR-006, P2 |
-| 5–7 | FR-011, FR-018, P5 |
-| 8–9 | FR-040 |
-| 10 | FR-004 |
-| 11 | FR-023/034 |
-| 12 | FR-015 |
-| 13 | FR-021 |
-| 14 | FR-013 |
-| 15 | FR-011 |
-| 16 | FR-003 |
-| 17 | FR-019 |
-| 21 | FR-011/013/037 |
-| 22 | FR-020 |
-| 25–27 | FR-002/003/020 |
-| 31 | P5 determinism |
-| 33 | FR-022/035 |
-| 41 | P1 enforcement |
+## Phase 3.3: Core Models (Entity Stubs)  (Created after tests written, can run in parallel)
+- [ ] T013 [P] Stub `MathExpression` model `lib/asciidoctor/latexmath/math_expression.rb` (attributes, invariants TODO markers).
+- [ ] T014 [P] Stub `RenderRequest` model `lib/asciidoctor/latexmath/render_request.rb` (fields, validation placeholders).
+- [ ] T015 [P] Stub `PipelineSignature` `lib/asciidoctor/latexmath/rendering/pipeline_signature.rb` (digest placeholder SHA256 helper).
+- [ ] T016 [P] Stub `CacheEntry` `lib/asciidoctor/latexmath/cache/cache_entry.rb` (serializer scaffold).
+- [ ] T017 [P] Skeleton `DiskCache` `lib/asciidoctor/latexmath/cache/disk_cache.rb` (fetch/store/with_lock signatures raise NotImplementedError).
+- [ ] T018 [P] Stub `ToolchainRecord` `lib/asciidoctor/latexmath/rendering/toolchain_record.rb`.
+- [ ] T019 [P] Renderer interface & base `lib/asciidoctor/latexmath/rendering/renderer.rb` (abstract methods, simple result struct).
+- [ ] T020 [P] Implement `ConflictRegistry` `lib/asciidoctor/latexmath/support/conflict_registry.rb` (thread-safe map, basic register! skeleton).
 
-## Completion Criteria
-- All TDD tasks green.
-- Lint passes (StandardRB).
-- README & DESIGN updated & consistent.
-- Cache determinism proven (rerun determinism spec twice).
-- Tool absence scenario verified (intentional PATH manipulation in spec).
+## Phase 3.4: Core Services & Processing
+- [ ] T021 Attribute resolution & normalization `lib/asciidoctor/latexmath/attribute_resolver.rb` (precedence chain, alias mapping, validation stubs) depends: T013,T014.
+- [ ] T022 Tool detection & version capture `lib/asciidoctor/latexmath/rendering/tool_detector.rb` depends: T018.
+- [ ] T023 Cache key implementation `lib/asciidoctor/latexmath/cache/cache_key.rb` depends: T015,T016,T017.
+- [ ] T024 Pipeline orchestrator `lib/asciidoctor/latexmath/rendering/pipeline.rb` depends: T015,T019.
+- [ ] T025 Pdflatex renderer stage `lib/asciidoctor/latexmath/rendering/pdflatex_renderer.rb` depends: T024,T022.
+- [ ] T026 [P] Pdf→SVG renderer stage `lib/asciidoctor/latexmath/rendering/pdf_to_svg_renderer.rb` depends: T025.
+- [ ] T027 [P] Pdf→PNG renderer stage `lib/asciidoctor/latexmath/rendering/pdf_to_png_renderer.rb` depends: T025.
+- [ ] T028 Processors (block & inline) `lib/asciidoctor/latexmath/processors/block_processor.rb`, `lib/asciidoctor/latexmath/processors/inline_macro_processor.rb` depends: T021,T022,T023,T024,T025–T027,T020.
+- [ ] T029 Extension wiring & registration update `lib/asciidoctor-latexmath.rb` depends: T028.
+
+## Phase 3.5: Behavior Completion & Edge Cases
+- [ ] T030 Implement cache hit/miss + store logic (DiskCache + CacheKey integration) depends: T023,T017,T029.
+- [ ] T031 Implement atomic write & concurrency lock behavior depends: T030.
+- [ ] T032 Implement conflict detection raising `TargetConflictError` depends: T020,T028,T030.
+- [ ] T033 Implement nocache + keep-artifacts flows depends: T028,T030.
+- [ ] T034 Implement timeout enforcement & process kill depends: T025–T027.
+- [ ] T035 Implement security restrictions (no shell-escape, sanitized args) depends: T025–T027.
+- [ ] T036 Implement attribute precedence & alias normalization logic (make T005 red→green) depends: T021,T028.
+
+## Phase 3.6: Polish & Performance
+- [ ] T037 [P] Performance smoke spec `spec/performance/render_perf_spec.rb` (skipped if tools missing) depends: T034.
+- [ ] T038 [P] Statistics logging spec `spec/integration/statistics_spec.rb` depends: T030,T033.
+- [ ] T039 Update README attributes table & usage examples depends: T036.
+- [ ] T040 Update DESIGN.md removing BlockMacro references depends: T039.
+- [ ] T041 Add examples: `examples/block_svg.adoc`, `examples/png_cached.adoc`, `examples/inline_mix.adoc` depends: T029,T033.
+- [ ] T042 Add CHANGELOG entry & set version 0.1.0 depends: T039–T041.
+- [ ] T043 Add release rake tasks & gem build verification depends: T042.
+- [ ] T044 [P] Add determinism spec `spec/integration/determinism_spec.rb` (repeat run identical checksum) depends: T030.
+- [ ] T045 Final verification checklist task (run full suite twice, capture timings) depends: T037–T044.
+
+## Dependencies (Summary)
+T002 → T001
+T003,T004 → T001
+T005–T012 → T002
+T013–T020 → T005–T012 (all tests authored) & T002
+T021 → T013,T014
+T022 → T018
+T023 → T015,T016,T017
+T024 → T015,T019
+T025 → T024,T022
+T026,T027 → T025
+T028 → T021,T022,T023,T024,T025,T026,T027,T020
+T029 → T028
+T030 → T023,T017,T029
+T031 → T030
+T032 → T020,T028,T030
+T033 → T028,T030
+T034 → T025,T026,T027
+T035 → T025,T026,T027
+T036 → T021,T028
+T037 → T034
+T038 → T030,T033
+T039 → T036
+T040 → T039
+T041 → T029,T033
+T042 → T039,T040,T041
+T043 → T042
+T044 → T030
+T045 → T037,T038,T042,T043,T044
+
+## Parallel Execution Examples
+Example Group A (Contracts): T005 T006 T007
+Example Group B (Integration Specs): T008 T009 T010 T011 T012
+Example Group C (Entity Stubs): T013 T014 T015 T016 T017 T018 T019 T020
+Example Group D (Renderer Stages): T026 T027
+Example Group E (Performance & Stats): T037 T038 T044
+
+## Validation Checklist
+- [ ] All contract files mapped to tests (renderer_pipeline, cache_key, processors → T005–T007)
+- [ ] All 8 entities have model stub tasks (T013–T020)
+- [ ] All user stories & acceptance scenarios mapped to integration specs (Primary + 4 scenarios → T008–T012)
+- [ ] Tests precede implementation (T005–T012 before T013+)
+- [ ] No [P] tasks share a file path
+- [ ] External tool detection & timeout tasks present (T022, T034)
+- [ ] Security restrictions task present (T035)
+- [ ] Lint/style task present (T003)
+- [ ] Determinism & performance tasks present (T037, T044)
+- [ ] Documentation & release tasks present (T039–T043)
+
+## Notes
+- Each task should result in at least one commit referencing TID (e.g., "T021: implement attribute resolver precedence chain").
+- Keep failing specs minimal initially; expand after core green to avoid over-specifying early.
+- Use pending blocks (`pending "..."`) where detailed behavior depends on later tasks to avoid brittle premature assertions.
+
+---
+Based on Constitution v2.0.0 – see `.specify/memory/constitution.md`.
 
