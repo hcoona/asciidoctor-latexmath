@@ -24,7 +24,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 ### Contract Specs
 - [ ] T006 [P] Processors contract spec: `spec/processors/processors_contract_spec.rb` (only 2 processors, no BlockMacro, alias warn once, precedence outline) (P1,P2).
 - [ ] T007 [P] Renderer pipeline contract spec: `spec/rendering/pipeline_contract_spec.rb` (stage order, signature diff, timeout placeholder) (P5).
-- [ ] T008 [P] Cache key & disk cache contract spec: `spec/cache/cache_key_contract_spec.rb` (field ordering, any field change alters digest, atomic write expectations, tool version impact) (P5).
+- [ ] T008 [P] Cache key & disk cache contract spec: `spec/cache/cache_key_contract_spec.rb` (field ordering, any included field change alters digest, atomic write expectations, engine/tool switch DOES NOT invalidate digest per P5 exclusion of engine/tool names) (P5).
 - [ ] T009 [P] Error handling contract spec: `spec/errors/error_handling_contract_spec.rb` (error classes enumerated, on-error policies abort/log behaviors pending) (FR-014/045/046).
 - [ ] T010 [P] Statistics contract spec: `spec/statistics/statistics_contract_spec.rb` (single line format regex, suppression rules, rounding) (FR-022/035).
 ### Integration (Acceptance) Specs
@@ -157,5 +157,5 @@ Group F (Perf/Determinism/Stats later): T051 T052 T053
 - Statistics line is immutable contract; any future field addition requires new FR + version bump.
 
 ---
-*Based on Constitution v2.0.0 – see `.specify/memory/constitution.md`*
+*Based on Constitution v3.0.0 – see `.specify/memory/constitution.md`*
 

@@ -135,8 +135,8 @@ When creating this spec from a user prompt:
    当用户通过块首位置属性显式提供基名且其中包含相对路径段（可含子目录或 `..` 段）时，按 Supplemental Clarifications 决策：不做清洗 / 限制；该相对路径以步骤 (1)/(2)/(3) 得出的“输出目录”作为解析锚点（即：若使用 `imagesoutdir` 则相对 `imagesoutdir`，否则相对 R）；这可能使最终路径越出 `imagesoutdir`（显式覆写例外）；自动生成哈希基名（FR-010）不享受此例外，始终落在步骤 (1)/(2)/(3) 计算出的基础输出目录（不附加额外越界子路径）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。显式基名允许包含路径分隔符与任意数量 `..` 段（不清洗，不拒绝）；当基名包含扩展：若末尾扩展 ∈ {svg,pdf,png} 且与目标格式匹配 → 保留；若末尾扩展 ∈ {svg,pdf,png} 但与目标格式不匹配 → “替换”该扩展为目标格式（WARN）；若末尾扩展不在集合 → 追加正确扩展（形成双扩展，WARN）。WARN 级别日志应指明原始名称与最终采用名称。冲突检测与缓存键逻辑基于最终文件名与 FR-011 组成。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。若该 16 字符截断产生与不同内容/配置的另一表达式基名冲突（极低概率），在写入阶段检测：追加 `-1`,`-2` 递增直到不冲突，并记录单次 WARN；递增后基名不再回溯修改缓存键（缓存键使用完整 SHA256）。
- - **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、preamble 哈希、PPI、入口类型（块/内联）、扩展版本；不包含编译引擎 / 转换 / PNG 工具的名称或版本（参见 Clarifications 2025-10-02 工具版本签名决策）；因此在同一表达式上切换引擎（pdflatex↔xelatex↔lualatex↔tectonic）或 SVG/PNG 转换工具（dvisvgm↔pdf2svg，pdftoppm↔magick↔gs）不会触发缓存失效；用户若需强制重渲染需修改 preamble、格式或手动清理缓存；未来若引入严格模式将新增属性而不改变默认键组成；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称。
-- **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
+ - **FR-011**: MUST 缓存键包含：内容哈希（同 FR-010 Normalization-E）、最终格式、preamble 哈希、PPI、入口类型（块/内联）、扩展版本；不包含编译引擎 / 转换 / PNG 工具的名称或版本（参见 Clarifications 2025-10-02 工具版本签名决策）；因此在同一表达式上切换引擎（pdflatex↔xelatex↔lualatex↔tectonic）或 SVG/PNG 转换工具（dvisvgm↔pdf2svg，pdftoppm↔magick↔gs）不会触发缓存失效；用户若需强制重渲染需修改 preamble、格式或手动清理缓存；未来若引入严格模式将新增属性而不改变默认键组成；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中再区分 stem 与 latexmath 名称。任何缓存键组成字段值变化（含 preamble、格式、PPI、入口类型或扩展版本变更）MUST 触发重新渲染（原 FR-012 已合并）。
+- **FR-012**: (Merged into FR-011; 保留编号以维持引用稳定，无独立要求)。
 - **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
    - NOTE: 与 FR-045/FR-046 协同；当当前作用域（元素→文档）解析 `on-error=abort` 时触发 fail-fast；否则记录错误并生成占位（占位结构见 FR-046，策略见 FR-045）。
@@ -147,7 +147,7 @@ When creating this spec from a user prompt:
 - **FR-019**: MUST 对不支持的格式、属性值、工具名给出枚举提示信息。
  - **FR-020**: MUST 在首次加载时检测可用工具并缓存结果，避免重复探测影响性能；该检测仅确认可执行存在与可运行性，不解析或记录版本号（与 FR-011 决策一致）。
 - **FR-021**: MUST 在启用 `keep-artifacts` 时保留 `.tex`、`.log`、以及成功渲染时的中间 PDF 与必要转换临时文件至“工件目录”(artifacts directory)。目录解析优先级：元素级 `artifacts-dir=` > 文档级 `:latexmath-artifacts-dir:` > 默认 `<cachedir>/artifacts`（cachedir 依 FR-037 决议，与缓存文件隔离）。相对路径基准=文档 outdir。不存在时在首次需要写入前递归创建；未启用 `keep-artifacts` 不创建。失败（无论策略=log 还是 abort）仅保留 `.tex` 与 `.log`（若已生成），应删除或不写入部分 PDF / 转换临时文件；成功才保留中间 PDF。`%nocache` 或 `cache=false` 不改变上述保留规则（仍以成功/失败区分）。该目录位置不进入缓存键（与 FR-011 一致）。
-- **FR-022**: MUST 可统计（可选日志级别）渲染次数、缓存命中次数、平均渲染耗时。统计输出契约 (MIN)：当日志级别≥info 且本次会话 renders+cache_hits>0 时仅输出 1 行：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`；四字段与顺序固定；`avg_render_ms`、`avg_hit_ms` 为四舍五入整数毫秒；无命中时 `avg_hit_ms=0`；不得添加新字段；低于 info 不输出；多次调用扩展（多文档）可各自输出一行。
+ - **FR-022**: MUST 统计渲染次数、缓存命中次数、平均渲染耗时并以“单行 MIN 契约”输出；输出格式固定：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`（字段与顺序不可变，未来扩展需新增 FR）；仅当日志级别≥info 且 (renders + cache_hits) > 0 时输出；低于 info 或 quiet 不输出；单个文档渲染生命周期内最多输出一行（多文档可各自一行）；`avg_render_ms` 与 `avg_hit_ms` 为四舍五入整数毫秒（无命中则 `avg_hit_ms=0`）；若 renders=0 可省略整行；不提供文档/元素级开关属性（仅受日志级别控制）。(合并原 FR-035 条款)。
 - **FR-023**: MUST 对单个表达式应用“统一墙钟超时”机制：默认 120s（文档级 `:latexmath-timeout:` 或元素级 `timeout=` 覆写，见 FR-034），预算从首次外部进程启动前开始计时；多个外部步骤（编译、SVG/PNG 转换等）共享同一剩余预算；任一步骤开始前若剩余 ≤0 或执行中耗尽则判定超时。超时时：对当前主子进程发送 SIGTERM，等待 2s，仍存活再 SIGKILL（Windows 使用强制终止）；不终止整组/后代进程；记录包含 `timeout=1`、已耗时、剩余=0 的日志，并依据 FR-045 失败策略生成占位或 fail-fast。建议信息包括：提高 timeout、精简公式、检查工具死锁。该行为不加入缓存键（FR-011）。
 - **FR-024**: MUST 对内联公式输出参考（文件或未来 data URI）；默认文件引用。
 - **FR-025**: MUST 不使用 TreeProcessor 或依赖 Mathematical；若检测到冲突（同时启用 mathematical）提示优先级与迁移。
@@ -160,7 +160,7 @@ When creating this spec from a user prompt:
 - **FR-032**: SHOULD 为重复出现的大型公式记录单独耗时便于性能诊断。
 - **FR-033**: SHOULD（未来扩展）支持独立于全局 `:data-uri:` 的细粒度内联策略；v1 不提供专有 data URI 开关，仅继承 Asciidoctor 核心 `:data-uri:` 行为并通过绝对路径辅助核心内联。
 - **FR-034**: SHOULD 允许用户自定义渲染超时：文档级属性 `:latexmath-timeout:` （正整数秒，默认 120），元素级属性 `timeout=` 可覆写当前表达式；非法或非正整数值应报错并回退默认。
-- **FR-035**: SHOULD 统计输出仅随日志级别（info 及以上）显示；不提供文档/元素级属性；当日志级别 quiet 或低于 info 不输出统计；需测试日志级别切换的可控性。禁止在单文档渲染生命周期内输出多于一行统计；若 renders=0 可完全省略。
+- **FR-035**: (Merged into FR-022; 保留编号以维持引用稳定，无独立要求)。
 - **FR-036**: MUST 采用“受控仓库作者完全可信”信任模型：假设公式与 preamble 来自可信源；实现禁用 shell-escape（见 FR-017）但不增加额外沙箱/文件系统隔离；多租/不可信输入强化措施（隔离目录、内存/CPU 限额）列为未来范围外。
 - **FR-037**: MUST 缓存目录解析顺序：1) 元素属性 `cachedir=` 明确指定（相对路径基于文档 outdir 解析）；2) 文档属性 `:latexmath-cachedir:`；3) 默认 `<outdir>/.asciidoctor/latexmath`；其中 `outdir` 由 Asciidoctor 决议（命令行 `-D` / 文档属性 / 执行工作目录）。若路径不存在需在渲染前创建；不得回退至 imagesdir。应允许旧别名 `cache-dir=` / `:latexmath-cache-dir:` 但发出一次去precation 日志（info 级）。
 - **FR-038**: MUST 不内建并行渲染调度（单进程串行队列）；跨进程并发仅依赖 FR-013 原子写保障；预留文档属性 `:latexmath-jobs:`（保留字，当前解析后记录 Warning 并忽略）以便未来扩展为可配置并行度（默认 cores）。
@@ -169,7 +169,7 @@ When creating this spec from a user prompt:
  - **FR-041**: MUST 集成与端到端命令行测试使用 Aruba（或功能等价沙箱）确保：每测试示例独立临时工作目录、环境变量清理、无跨示例残留文件；测试可通过 helper 提供对渲染产物与日志的断言；不得依赖真实用户 HOME / 全局缓存副作用。
  - **FR-042**: SHOULD 在首次实现后生成一份性能基准（≥30 个简单公式批量：SVG 冷/热 + PNG）并记录：冷启动 p50/p95、缓存命中追加开销、平均渲染耗时；若 SVG 冷 p95 > 3000ms 或 PNG 冷 p95 > 3500ms 则需在后续迭代将明确量化阈值添加为 MUST（更新本 spec 与 README）。当前版本不锁定硬阈值（见 Clarifications）。
 - **FR-043**: MUST 生成 HTML 时，对由扩展替换的数学公式引用（`<img>` 或等效占位）添加可访问性元数据：`alt` 属性内容 = 原始 LaTeX 源（逐字保留，不截断，不做命令剥离）；附加 `role="math"` 与 `data-latex-original`（同 alt 内容）属性；若用户已手动提供 `alt` 元素属性（块/内联属性）则优先用户值且仍附加 `role` 与 `data-latex-original`（不覆盖用户 alt）。该行为适用于三种输出格式 (svg/pdf/png)；与缓存 / 基名 / 哈希策略无副作用；测试应验证：存在 alt、role、data-latex-original 且三者一致（当未用户覆写）。
-- **FR-044**: MUST 不对文档中数学公式总数施加内建上限；应可在公式数量无限增长（例如 ≥10k）时维持近线性总耗时增长，并避免除缓存与统计所需外的 O(n) 级内存累积（处理单个表达式后释放中间状态）；失败公式的错误处理策略另行定义（见后续 Clarifications）。性能基准场景需包含 ≥5k 简单公式批量以验证无指数退化。
+- **FR-044**: MUST 不对文档中数学公式总数施加内建上限；应可在公式数量无限增长（例如 ≥10k）时维持近线性总耗时增长，并避免除缓存与统计所需外的 O(n) 级内存累积（处理单个表达式后释放中间状态）；失败公式的错误处理策略另行定义（见后续 Clarifications）。性能基准场景需包含 ≥5k 简单公式批量以验证无指数退化。近线性部分在 v1 标记为 EXPLORATORY / Non-Binding（不作为验收 Gate）；待 FR-042 生成 `performance-baseline.md` 后将引入正式量化阈值或升级此条款。Exploratory 量化候选（非正式占位，不具约束力）：令 T(n) 为 n 个“简单公式”（≤120 chars，无复杂宏展开）冷启动总耗时，t(n)=T(n)/n；以 n0=300 基线运行的平均 t0 为参考，若 n ∈ {500,1000,2000,5000,10000} 均满足 t(n) ≤ t0*(1+0.15) 且常驻内存增量 ΔRSS(n) 相对 ΔRSS(n0) 无超线性增长（候选条件：ΔRSS(n) ≤ ΔRSS(n0)+50MB，占位值）则视为“近线性”。最终 15% 与 50MB 参数将在基线文档中复核并可能调整后转为 MUST。
 - **FR-045**: MUST 提供失败策略属性：文档级 `:latexmath-on-error:`，元素级 `on-error=`；允许值 `log` 与 `abort`；默认 `log`。`abort` → 在首次失败立即终止转换并返回错误；`log` → 记录错误（与 FR-014 输出一致）并在输出中插入结构化占位（见 FR-046），继续处理剩余表达式，最终构建成功且统计中不计入成功渲染次数（renders 不含失败项）。非法值时报错并回退默认 `log`。缓存不记录失败产物。
  - **FR-046**: MUST 当失败策略=log 且单表达式渲染失败时插入 `<pre class="highlight latexmath-error" role="note" data-latex-error="1">` 占位，内部文本段落按顺序包含：
     1. `Error:` + 简短错误描述（单行）
@@ -202,6 +202,8 @@ When creating this spec from a user prompt:
 - **Cache Entry**: 由缓存键映射到产物路径与元数据（命中次数、生成时间）；不存储或解析工具/引擎版本或名称（见 Clarifications 工具版本签名决策）。
 - **Toolchain Configuration**: 用户声明的引擎与转换工具组合；决定管线步骤。
 - **Statistics Record**: 可选聚合指标（渲染次数、平均耗时、命中率）。
+- **Pipeline Signature**: 渲染阶段序列与关键规范字段的摘要（不含引擎/工具名称），用于与缓存键字段集合一致性校验。
+- **Disk Cache Store**: 管理多个缓存条目的持久化、原子写入与并发控制的抽象（区别于单个 Cache Entry）。
 
 ---
 
@@ -236,4 +238,4 @@ When creating this spec from a user prompt:
 
 ---
 
-*Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v3.0.0 - See `.specify/memory/constitution.md`*

@@ -31,7 +31,7 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-离线（本地 LaTeX 工具链）渲染 `latexmath` 块与内联宏表达式为 `svg|pdf|png`，提供与 `asciidoctor-diagram` 风格一致的属性/缓存/目录/冲突处理语义，仅维持 Processor Duo（Block + InlineMacro），实现确定性缓存键（内容哈希 + 配置 + 工具版本 + 引擎 + preamble 哈希 + 版本），在失败策略(`on-error`)与统计输出(单行 MIN 格式)下保持可预测、可追踪、可重复构建。所有模糊点已通过 Clarifications 解决；无剩余 NEEDS CLARIFICATION。
+离线（本地 LaTeX 工具链）渲染 `latexmath` 块与内联宏表达式为 `svg|pdf|png`，提供与 `asciidoctor-diagram` 风格一致的属性/缓存/目录/冲突处理语义，仅维持 Processor Duo（Block + InlineMacro）。缓存键遵循宪章 P5 / 规范 FR-011：包含内容哈希、归一化属性签名、输出格式、preamble 哈希、PPI（位图）、入口类型、扩展版本；显式不包含任何编译引擎或转换工具的名称 / 版本（引擎或工具切换不应导致缓存失效）。失败策略(`on-error`)与统计输出(单行 MIN 格式)保持可预测、可追踪、可重复构建。所有模糊点已通过 Clarifications 解决；无剩余 NEEDS CLARIFICATION。
 
 ## Technical Context
 **Language/Version**: Ruby 3.1–3.3 (tested matrix)
@@ -40,7 +40,7 @@
 **Testing**: RSpec（单元/契约/集成/性能），Aruba（文件系统隔离），Pending 性能基准脚本。
 **Target Platform**: Linux / macOS（初始），Windows 后续评估。
 **Project Type**: 单库（Ruby gem + Asciidoctor extension）。
-**Performance Goals**: 冷启动简单公式 (≤120 chars) SVG p95 < ~3000ms（软目标），缓存命中平均 <5ms 附加开销，后续基准固化硬阈值 (FR-042)。
+**Performance Goals (Exploratory / Non-Binding v1)**: 当前仅收集基线而不做验收门槛——冷启动简单公式 (≤120 chars) SVG p95 观测目标 ~3000ms，缓存命中平均附加开销目标 <5ms。此处为探索性指标（Exploratory），不作为 v1 成功/失败判据；待 FR-042 生成 `performance-baseline.md` 后，如观察到 SVG 冷 p95 > 3000ms 或 PNG 冷 p95 > 3500ms 将推动新增 MUST（或更新 FR-044 量化公式）。
 **Constraints**: 纯离线、无网络依赖；禁止 TreeProcessor & BlockMacro；确定性缓存、可重复构建、超时强制 120s 默认。
 **Scale/Scope**: 支撑 ≥5k 公式线性扩展；无内建上限；内存与状态按表达式流式处理。
 **Outstanding Clarifications**: None (全部已解决)。
@@ -208,4 +208,4 @@ tasks.md 已生成并包含 45 个分阶段任务，覆盖：
 - [x] Complexity deviations documented (None)
 
 ---
-*Based on Constitution v2.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v3.0.0 - See `.specify/memory/constitution.md`*
