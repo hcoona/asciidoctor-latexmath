@@ -1,0 +1,191 @@
+@startuml asciidoctor-latexmath Class Diagram (Top→Down Layout v2)
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+top to bottom direction
+
+package "Asciidoctor::Latexmath" {
+
+  ' ====== Layer 0: Entry ======
+  class ExtensionRegistry {
+    +register!(registry) : void
+    -config : Configuration
+    -builder : RendererBuilder
+    -cache : DiskCache
+  }
+
+  ' ====== Layer 1: Wiring & Config ======
+  class Configuration {
+    +from_document(doc) : Configuration
+    +default_format() : Symbol
+    +images_outdir(node) : String
+    +images_dir(node) : String
+    +cache_dir(node) : String
+    +engine_preference() : Symbol
+    +preamble() : String
+    +ppi() : Float
+    +inline_data_uri?() : Boolean
+  }
+
+  class RendererBuilder {
+    +build(req : RenderRequest, cache : DiskCache) : IRenderer
+    -compose_pipeline(req : RenderRequest) : IRenderer
+    -signature_for_pipeline(req : RenderRequest) : String
+  }
+
+  class DiskCache {
+    +fetch_path(key : String) : String?
+    +write_path(key : String, path : String) : void
+    +path_for(key : String) : String
+  }
+
+  ' ====== Layer 2: Processors ======
+  class LatexmathInlineMacroProcessor {
+    +process(parent, target, attrs) : Asciidoctor::Inline
+    -config : Configuration
+    -builder : RendererBuilder
+  }
+
+  class LatexmathBlockMacroProcessor {
+    +process(parent, target, attrs) : Asciidoctor::Block
+    -config : Configuration
+    -builder : RendererBuilder
+  }
+
+  class LatexmathBlockProcessor {
+    +process(parent, reader, attrs) : Asciidoctor::Block
+    -config : Configuration
+    -builder : RendererBuilder
+  }
+
+  ' ====== Layer 3: Request ======
+  class RequestFactory {
+    +from_inline(parent, target, attrs, cfg) : RenderRequest
+    +from_block_macro(parent, target, attrs, cfg) : RenderRequest
+    +from_block(parent, reader, attrs, cfg) : RenderRequest
+  }
+
+  class RenderRequest {
+    +mode() : Symbol            ' :inline | :macro | :block
+    +payload() : String         ' expanded LaTeX source
+    +format() : Symbol          ' :svg | :png | :pdf
+    +options() : Hash           ' preamble/ppi/engine overrides
+    +content_hash() : String
+  }
+
+  ' ====== Layer 4: Renderer Abstractions ======
+  interface IRenderer {
+    +name() : String
+    +signature() : String
+    +render(req : RenderRequest, cfg : Configuration) : String  ' returns target_path
+  }
+
+  class CompositeRenderer {
+    +name() : String
+    +signature() : String
+    +render(req : RenderRequest, cfg : Configuration) : String
+    -steps : List<IRenderer>
+    -validate_chain!(steps : List<IRenderer>) : void
+  }
+
+  class CachingRenderer {
+    +name() : String
+    +signature() : String
+    +render(req : RenderRequest, cfg : Configuration) : String
+    -inner : IRenderer
+    -cache : DiskCache
+    -cache_key(req : RenderRequest, cfg : Configuration) : String
+  }
+
+  ' ====== Layer 5: Concrete Renderers ======
+  class PdflatexRenderer {
+    {static} +available?() : Boolean
+  }
+
+  class Pdf2SvgRenderer {
+    {static} +available?() : Boolean
+  }
+
+  class DvisvgmRenderer {
+    {static} +available?() : Boolean
+  }
+
+  class PdftoppmRenderer {
+    {static} +available?() : Boolean
+  }
+
+  class MagickRenderer {
+    {static} +available?() : Boolean
+  }
+
+  class GhostscriptRenderer {
+    {static} +available?() : Boolean
+  }
+
+  ' ====== Hierarchy & Directional Layout ======
+
+  ' Composition/ownership from top to lower layers
+  ExtensionRegistry *----> RendererBuilder
+  ExtensionRegistry *----> LatexmathInlineMacroProcessor
+  ExtensionRegistry *----> LatexmathBlockMacroProcessor
+  ExtensionRegistry *----> LatexmathBlockProcessor
+
+  ' Registry knows config & cache
+  ExtensionRegistry ----> Configuration
+  ExtensionRegistry ----> DiskCache
+
+  ' Processors depend on Builder
+  LatexmathInlineMacroProcessor ----down----> RendererBuilder
+  LatexmathBlockMacroProcessor ----down----> RendererBuilder
+  LatexmathBlockProcessor ----down----> RendererBuilder
+
+  ' Processors create requests
+  LatexmathInlineMacroProcessor ---down---> RequestFactory
+  LatexmathBlockMacroProcessor ---down---> RequestFactory
+  LatexmathBlockProcessor ---down---> RequestFactory
+
+  RequestFactory ---right---> RenderRequest
+
+  ' Builder produces a Renderer
+  RendererBuilder ---down---> IRenderer
+
+  ' Implementation relationships (interface above, classes below)
+  IRenderer <|.. CompositeRenderer
+  IRenderer <|.. CachingRenderer
+  IRenderer <|.. PdflatexRenderer
+  IRenderer <|.. Pdf2SvgRenderer
+  IRenderer <|.. DvisvgmRenderer
+  IRenderer <|.. PdftoppmRenderer
+  IRenderer <|.. MagickRenderer
+  IRenderer <|.. GhostscriptRenderer
+
+  ' Renderer compositions/wrapping
+  CompositeRenderer "1" ---up---> "many" IRenderer : steps
+  CachingRenderer "1" ---up---> "1" IRenderer : wraps
+  CachingRenderer ---right---> DiskCache
+
+  ' ====== Notes ======
+  note right of CompositeRenderer
+    No runtime fallback; pipeline is fixed per request.
+    Each concrete renderer exposes {static} available?()
+    so Builder can decide composition.
+  end note
+
+  note right of CachingRenderer
+    End-to-end disk cache wrapper.
+    Key := ext_version + req.content_hash +
+           pipeline_signature + req.format +
+           ppi + preamble_hash + engine/tool versions +
+           req.mode. Renderer must be idempotent.
+  end note
+
+  note bottom of RenderRequest
+    Asciidoctor include::[] has already been expanded
+    before processors; payload is ready-to-compile LaTeX.
+  end note
+
+  note bottom of LatexmathInlineMacroProcessor
+    Only returns target file path. Data URI / HTML details
+    are handled by downstream Asciidoctor converters.
+  end note
+}
+@enduml
