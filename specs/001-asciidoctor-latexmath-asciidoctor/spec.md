@@ -69,6 +69,11 @@ When creating this spec from a user prompt:
  - Q: 性能指标阈值是否在 v1 规格中量化? → A: 选 Option E（暂不固化具体数值）；定义“性能可接受”= 简单公式（≤120 字符，无自定义 preamble）冷启动渲染不会显著拖慢 CI（经验目标 p95 < 3s，如超过需在后续基准后回补强制阈值条目）。
  - Q: 集成 / CLI 层测试的文件系统隔离策略? → A: 使用 Aruba (RSpec) 沙箱，每个示例独立临时目录与隔离环境变量，避免状态泄漏并便于命令行行为回归测试。
  - Q: 统计输出格式策略? → A: 选 MIN：当日志级别≥info 且至少处理 1 个表达式，在渲染会话结束时输出单行纯文本：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`；字段顺序与名称稳定且永不新增额外键；`avg_render_ms` 为所有实际执行渲染（非缓存命中）耗时的算术平均（四舍五入到整数 ms），`avg_hit_ms` 为所有命中耗时平均（若无命中则为 0）；quiet 或低于 info 不输出；禁止在同一会话重复输出多行统计。
+- Q: v1 HTML 可访问性文本策略（渲染产物标签）采用哪种方案? → A: 选 Option D：alt=原始 LaTeX（逐字），并在标签上添加 `role="math"` 与 `data-latex-original` 属性以利辅助技术与后续增强（无截断策略；与内容哈希逻辑独立）。
+- Q: 典型与需支撑的最大公式数量规模假设? → A: 选 Option E：不设上限；需可流式处理任意规模（IO/缓存驱动）并保持近线性扩展，不强制内存常驻全部表达式。
+- Q: 单个公式渲染失败（编译/工具错误）时文档处理策略? → A: 可配置：文档/元素属性 `latexmath-on-error`（或 `on-error=`）取值 `log|abort`；默认 `log`（继续其它公式并插入占位，整体构建成功）；`abort` 表示 fail-fast（立即终止整体失败）。块级属性覆写文档级；不支持自动重试；未识别值时报错并回落默认 `log`。
+
+- Q: 失败占位（on-error=log）HTML 呈现策略? → A: 使用 `<pre class="highlight latexmath-error">`；内部顺序包含：1) 简短错误描述 2) 执行命令 3) stdout 4) stderr 5) 原始 AsciiDoc 文本 6) 生成的 LaTeX 源；该占位不缓存、不写入统计 renders、仅在策略=log 且单表达式失败时生成；保留换行与缩进供诊断；不截断（未来如需截断将引入独立属性并保持向后兼容）。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -109,6 +114,7 @@ When creating this spec from a user prompt:
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
 - **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
+   - NOTE: 与 FR-045 协同；当当前作用域（元素→文档）解析 `on-error=abort` 时触发 fail-fast；否则记录错误并生成占位（见 FR-045）。
 - **FR-015**: MUST 支持用户关闭缓存（文档级或元素级），关闭后不读取也不写入缓存。
 - **FR-016**: MUST 允许 `latexmath-preamble` 追加多行文本；空值不产生额外空行副作用。
 - **FR-017**: MUST 默认禁止潜在危险的外部命令执行（无显式允许时不启用 shell escape）。
@@ -137,6 +143,17 @@ When creating this spec from a user prompt:
 - **FR-040**: MUST 当两个以上表达式（内容或配置不同 → 缓存键不同）显式请求相同目标基名 + 相同格式时：在首次检测到第二个冲突时抛出可操作错误，列出：目标名、原始定义（行/块标识）、新定义摘要（前 80 字符哈希前缀）、建议（移除显式目标名或改名）。若缓存键相同（完全同一内容与配置）则视为幂等：不重写文件亦不警告。检测需在写入前完成（结合 FR-013 原子策略）。
  - **FR-041**: MUST 集成与端到端命令行测试使用 Aruba（或功能等价沙箱）确保：每测试示例独立临时工作目录、环境变量清理、无跨示例残留文件；测试可通过 helper 提供对渲染产物与日志的断言；不得依赖真实用户 HOME / 全局缓存副作用。
  - **FR-042**: SHOULD 在首次实现后生成一份性能基准（≥30 个简单公式批量：SVG 冷/热 + PNG）并记录：冷启动 p50/p95、缓存命中追加开销、平均渲染耗时；若 SVG 冷 p95 > 3000ms 或 PNG 冷 p95 > 3500ms 则需在后续迭代将明确量化阈值添加为 MUST（更新本 spec 与 README）。当前版本不锁定硬阈值（见 Clarifications）。
+- **FR-043**: MUST 生成 HTML 时，对由扩展替换的数学公式引用（`<img>` 或等效占位）添加可访问性元数据：`alt` 属性内容 = 原始 LaTeX 源（逐字保留，不截断，不做命令剥离）；附加 `role="math"` 与 `data-latex-original`（同 alt 内容）属性；若用户已手动提供 `alt` 元素属性（块/内联属性）则优先用户值且仍附加 `role` 与 `data-latex-original`（不覆盖用户 alt）。该行为适用于三种输出格式 (svg/pdf/png)；与缓存 / 基名 / 哈希策略无副作用；测试应验证：存在 alt、role、data-latex-original 且三者一致（当未用户覆写）。
+- **FR-044**: MUST 不对文档中数学公式总数施加内建上限；应可在公式数量无限增长（例如 ≥10k）时维持近线性总耗时增长，并避免除缓存与统计所需外的 O(n) 级内存累积（处理单个表达式后释放中间状态）；失败公式的错误处理策略另行定义（见后续 Clarifications）。性能基准场景需包含 ≥5k 简单公式批量以验证无指数退化。
+- **FR-045**: MUST 提供失败策略属性：文档级 `:latexmath-on-error:`，元素级 `on-error=`；允许值 `log` 与 `abort`；默认 `log`。`abort` → 在首次失败立即终止转换并返回错误；`log` → 记录错误（与 FR-014 输出一致）并在输出中插入结构化占位（见 FR-046），继续处理剩余表达式，最终构建成功且统计中不计入成功渲染次数（renders 不含失败项）。非法值时报错并回退默认 `log`。缓存不记录失败产物。
+ - **FR-046**: MUST 当失败策略=log 且单表达式渲染失败时插入 `<pre class="highlight latexmath-error" role="note" data-latex-error="1">` 占位，内部文本段落按顺序包含：
+    1. `Error:` + 简短错误描述（单行）
+    2. `Command:` + 完整执行命令字符串
+    3. `Stdout:` 原样（空则写 `<empty>`）
+    4. `Stderr:` 原样（空则写 `<empty>`）
+    5. `Source (AsciiDoc):` 原始表达式（如为块包含多行）
+    6. `Source (LaTeX):` 生成的 `.tex` 文件主内容（preamble + 公式）
+   分节之间以单个空行分隔；仅进行 HTML 必要转义（`&`, `<`, `>` 等）；不额外截断；不写入缓存；不计入成功渲染统计；未来若需截断/精简将通过新增属性控制并保持向后兼容。
 
 
 ### Key Entities *(include if feature involves data)*
