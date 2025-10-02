@@ -59,6 +59,11 @@ When creating this spec from a user prompt:
 - Q: 超时属性命名与单位选哪种方案? → A: 采用文档级 `:latexmath-timeout:` （正整数秒），元素级 `timeout=` 覆写；不支持毫秒与多属性回退。
 - Q: 统计禁用设计（FR-035）采用哪种方案? → A: 通过日志级别控制统计输出；不引入专有属性；降低日志级别（quiet）即抑制统计。
 - Q: 是否支持 `latexmath::[]` 块宏语法? → A: 不支持；范围限定为 `[latexmath]` 块与 `latexmath:[...]` 内联宏两种入口。
+- Q: 渲染时对 LaTeX 源（公式正文与 `preamble`）的信任级别是哪种? → A: 完全可信（受控仓库作者）；禁用 shell-escape，额外沙箱/FS 隔离不在 v1 范围。
+- Q: 默认缓存目录策略? → A: 与 asciidoctor-diagram 逻辑对齐（名称替换为 latexmath）：优先元素 `cachedir=`，否则文档级 `:latexmath-cachedir:`，否则回退 `<outdir>/.asciidoctor/latexmath`；不使用 imagesdir；示例：`-D build/out` 时默认为 `build/out/.asciidoctor/latexmath`。
+- Q: 并行渲染/调度策略? → A: 不内建并行（单进程串行，Option E）；v1 仅保障跨进程并发安全（多 Asciidoctor 进程指向同一缓存目录）；预留未来扩展 `:latexmath-jobs:`（Option D 风格）但当前未实现。
+- Q: 缓存回收 / 老化策略? → A: 无自动回收（Option A）；v1 不进行大小/TTL 扫描，不输出阈值告警；完全由用户手动删除；未来如引入策略将新增独立属性并保持向后兼容。
+- Q: 显式目标基名冲突策略? → A: 检测差异并报错（Option B）；同名且内容/配置哈希不同立即构建失败，提示首次定义位置与冲突条目；哈希相同则复用不重复写。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -90,14 +95,14 @@ When creating this spec from a user prompt:
 - **FR-003**: MUST 允许用户通过属性选择编译引擎 (pdflatex/xelatex/lualatex/tectonic)。
 - **FR-004**: MUST 在缺少所需工具链时以可操作错误终止，列出缺失命令与建议解决方式。
 - **FR-005**: MUST 在同一内容+配置组合下重复构建时命中缓存且不重复调用外部命令（命中率可统计）。
-- **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cache-dir=`、`artifacts-dir=` 覆写。
+- **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 早期草案命名弃用（可作为别名接受但不在文档公开）。
 - **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。
 - **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。
 - **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名，避免冲突。
 - **FR-011**: MUST 缓存键包含：内容哈希、最终格式、引擎类型、preamble 哈希、工具版本签名、PPI、入口类型（块/内联）、扩展版本。
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
-- **FR-013**: MUST 在并行运行中防止竞争条件（无局部半写文件；写操作原子）。
+- **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
 - **FR-015**: MUST 支持用户关闭缓存（文档级或元素级），关闭后不读取也不写入缓存。
 - **FR-016**: MUST 允许 `latexmath-preamble` 追加多行文本；空值不产生额外空行副作用。
@@ -120,6 +125,11 @@ When creating this spec from a user prompt:
 - **FR-033**: SHOULD（未来扩展）支持独立于全局 `:data-uri:` 的细粒度内联策略；v1 不提供专有 data URI 开关，仅继承 Asciidoctor 核心 `:data-uri:` 行为并通过绝对路径辅助核心内联。
 - **FR-034**: SHOULD 允许用户自定义渲染超时：文档级属性 `:latexmath-timeout:` （正整数秒，默认 120），元素级属性 `timeout=` 可覆写当前表达式；非法或非正整数值应报错并回退默认。
 - **FR-035**: SHOULD 统计输出仅随日志级别（info 及以上）显示；不提供文档/元素级属性；当日志级别 quiet 或低于 info 不输出统计；需测试日志级别切换的可控性。
+- **FR-036**: MUST 采用“受控仓库作者完全可信”信任模型：假设公式与 preamble 来自可信源；实现禁用 shell-escape（见 FR-017）但不增加额外沙箱/文件系统隔离；多租/不可信输入强化措施（隔离目录、内存/CPU 限额）列为未来范围外。
+- **FR-037**: MUST 缓存目录解析顺序：1) 元素属性 `cachedir=` 明确指定（相对路径基于文档 outdir 解析）；2) 文档属性 `:latexmath-cachedir:`；3) 默认 `<outdir>/.asciidoctor/latexmath`；其中 `outdir` 由 Asciidoctor 决议（命令行 `-D` / 文档属性 / 执行工作目录）。若路径不存在需在渲染前创建；不得回退至 imagesdir。应允许旧别名 `cache-dir=` / `:latexmath-cache-dir:` 但发出一次去precation 日志（info 级）。
+- **FR-038**: MUST 不内建并行渲染调度（单进程串行队列）；跨进程并发仅依赖 FR-013 原子写保障；预留文档属性 `:latexmath-jobs:`（保留字，当前解析后记录 Warning 并忽略）以便未来扩展为可配置并行度（默认 cores）。
+- **FR-039**: MUST 不实施任何自动缓存逐出/清理：不基于大小、文件数或 TTL 扫描删除；插件不对缓存目录做周期遍历。用户如需清理，需手动删除目录（安全：再生成时按键重建）。未来策略（大小 / TTL / LRU）将通过新属性显式启用，保持默认行为不变。
+- **FR-040**: MUST 当两个以上表达式（内容或配置不同 → 缓存键不同）显式请求相同目标基名 + 相同格式时：在首次检测到第二个冲突时抛出可操作错误，列出：目标名、原始定义（行/块标识）、新定义摘要（前 80 字符哈希前缀）、建议（移除显式目标名或改名）。若缓存键相同（完全同一内容与配置）则视为幂等：不重写文件亦不警告。检测需在写入前完成（结合 FR-013 原子策略）。
 
 
 ### Key Entities *(include if feature involves data)*
