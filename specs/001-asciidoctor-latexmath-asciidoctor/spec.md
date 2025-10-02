@@ -87,6 +87,10 @@ When creating this spec from a user prompt:
 - Q: 多外部步骤（编译 + 转换）如何应用超时预算？ → A: 选 D：单表达式共享统一墙钟预算 N 秒（默认 120，属性见 FR-034）。计时起点 = 启动首个外部进程前；每步开始前检查剩余预算；单步运行时若累计耗尽（剩余 ≤0 或本步耗时 > 剩余）即判定超时；后续步骤不再执行。剩余时间递减直至 0；不为每步重置（区别于 per-step 模式）。
 - Q: 超时触发的外部进程终止策略？ → A: 选 B：对当前“主”外部进程先发送 SIGTERM，等待固定 2s（未来可参数化），仍存活再 SIGKILL；仅针对该 PID，不向整个进程组广播（不额外 setsid）。Windows 环境使用强制终止 API。日志需包含 `timeout=1` 标记与已消耗时间。此策略整合进 FR-023。
 - Q: 目标产物文件路径已存在（且本次不是缓存命中）时处理策略？ → A: 选 A：无条件覆盖（即使该文件并非由本扩展先前生成），采用“写临时 → 原子重命名”流程；不做现有内容哈希比较，也不将其视为缓存命中；记录 debug 级日志。表达式间显式同名冲突仍由 FR-040 抑制（在写入阶段前）。策略新增 FR-051。
+- Q: 文档级与元素级 preamble 同时存在时合成策略？ → A: 策略 A：元素级完全替换文档级；元素级存在时忽略文档级；缓存键 preamble 哈希基于最终实际使用的单一 preamble 文本。
+- Q: 缓存禁用优先级（%nocache 与 cache= 及文档级）？ → A: `%nocache` > 元素级 `cache=` > 文档级 `:latexmath-cache:`；一旦出现 `%nocache` 强制禁用；否则若元素级 `cache=` 存在按其值；否则回退文档级。
+ - Q: artifacts 中间文件目录默认与优先级策略？ → A: 选 D：元素级 `artifacts-dir=` > 文档级 `:latexmath-artifacts-dir:`；默认 `cachedir/artifacts` 子目录（与缓存内容隔离）；相对路径基准=文档 outdir；未启用 `keep-artifacts` 不创建；目录不进入缓存键。
+ - Q: keep-artifacts 在失败 / 禁用缓存场景下的保留范围？ → A: 选 C：失败（无论策略=log 还是 abort）仅保留 `.tex` 与 `.log`，删除（或不写入）部分生成的中间 PDF / 转换文件；成功时保留全量（含中间 PDF）；`%nocache` 不影响保留规则（仍按成功/失败分支判定）。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -121,7 +125,7 @@ When creating this spec from a user prompt:
 - **FR-004**: MUST 在缺少所需工具链时以可操作错误终止，列出缺失命令与建议解决方式。
 - **FR-005**: MUST 在同一内容+配置组合下重复构建时命中缓存且不重复调用外部命令（命中率可统计）。
 - **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`xelatex=`、`lualatex=`、`tectonic=`、`dvisvgm=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 早期草案命名弃用（可作为别名接受但不在文档公开）。
-- **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。
+- **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。缓存判定优先级：`%nocache` > 元素级 `cache=` > 文档级 `:latexmath-cache:`（见 Clarifications）；一旦出现 `%nocache` 则无条件禁用缓存，忽略该元素 `cache=` 值与文档级设置；否则若存在元素级 `cache=` 则按其布尔值决定；否则回退文档级。
 - **FR-008**: MUST 生成的输出文件路径决策顺序与 `asciidoctor-diagram` 对齐：
    1. 若存在文档/元素属性 `imagesoutdir` → 输出目录 = 解析后的 `imagesoutdir`（无需再参考 `outdir` / `to_dir` / `imagesdir`）。
    2. 否则确定根目录 R：优先级 `outdir` 属性 > 文档 options `:to_dir` > 文档 `base_dir`。
@@ -137,12 +141,12 @@ When creating this spec from a user prompt:
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
    - NOTE: 与 FR-045/FR-046 协同；当当前作用域（元素→文档）解析 `on-error=abort` 时触发 fail-fast；否则记录错误并生成占位（占位结构见 FR-046，策略见 FR-045）。
 - **FR-015**: MUST 支持用户关闭缓存（文档级或元素级），关闭后不读取也不写入缓存。
-- **FR-016**: MUST 允许 `latexmath-preamble` 追加多行文本；空值不产生额外空行副作用。
+- **FR-016**: MUST 允许 `latexmath-preamble` 追加多行文本；空值不产生额外空行副作用。当同时存在文档级 `:latexmath-preamble:` 与元素级 `preamble=` 时采用替换策略：若元素级存在则完全忽略文档级内容（不拼接、不去重）；缓存键中 preamble 哈希使用实际生效的（元素级或文档级）文本。
 - **FR-017**: MUST 默认禁止潜在危险的外部命令执行（无显式允许时不启用 shell escape）。
 - **FR-018**: MUST 为 PNG 输出应用 PPI（≥72 且 ≤600）范围校验; 超出时报错。
 - **FR-019**: MUST 对不支持的格式、属性值、工具名给出枚举提示信息。
  - **FR-020**: MUST 在首次加载时检测可用工具并缓存结果，避免重复探测影响性能；该检测仅确认可执行存在与可运行性，不解析或记录版本号（与 FR-011 决策一致）。
-- **FR-021**: MUST 在启用 `keep-artifacts` 时保留 `.tex`、`.log`、中间 PDF 至指定 artifacts 目录。
+- **FR-021**: MUST 在启用 `keep-artifacts` 时保留 `.tex`、`.log`、以及成功渲染时的中间 PDF 与必要转换临时文件至“工件目录”(artifacts directory)。目录解析优先级：元素级 `artifacts-dir=` > 文档级 `:latexmath-artifacts-dir:` > 默认 `<cachedir>/artifacts`（cachedir 依 FR-037 决议，与缓存文件隔离）。相对路径基准=文档 outdir。不存在时在首次需要写入前递归创建；未启用 `keep-artifacts` 不创建。失败（无论策略=log 还是 abort）仅保留 `.tex` 与 `.log`（若已生成），应删除或不写入部分 PDF / 转换临时文件；成功才保留中间 PDF。`%nocache` 或 `cache=false` 不改变上述保留规则（仍以成功/失败区分）。该目录位置不进入缓存键（与 FR-011 一致）。
 - **FR-022**: MUST 可统计（可选日志级别）渲染次数、缓存命中次数、平均渲染耗时。统计输出契约 (MIN)：当日志级别≥info 且本次会话 renders+cache_hits>0 时仅输出 1 行：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`；四字段与顺序固定；`avg_render_ms`、`avg_hit_ms` 为四舍五入整数毫秒；无命中时 `avg_hit_ms=0`；不得添加新字段；低于 info 不输出；多次调用扩展（多文档）可各自输出一行。
 - **FR-023**: MUST 对单个表达式应用“统一墙钟超时”机制：默认 120s（文档级 `:latexmath-timeout:` 或元素级 `timeout=` 覆写，见 FR-034），预算从首次外部进程启动前开始计时；多个外部步骤（编译、SVG/PNG 转换等）共享同一剩余预算；任一步骤开始前若剩余 ≤0 或执行中耗尽则判定超时。超时时：对当前主子进程发送 SIGTERM，等待 2s，仍存活再 SIGKILL（Windows 使用强制终止）；不终止整组/后代进程；记录包含 `timeout=1`、已耗时、剩余=0 的日志，并依据 FR-045 失败策略生成占位或 fail-fast。建议信息包括：提高 timeout、精简公式、检查工具死锁。该行为不加入缓存键（FR-011）。
 - **FR-024**: MUST 对内联公式输出参考（文件或未来 data URI）；默认文件引用。
