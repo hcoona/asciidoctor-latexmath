@@ -66,7 +66,6 @@ When creating this spec from a user prompt:
 - Q: 显式目标基名冲突策略? → A: 检测差异并报错（Option B）；同名且内容/配置哈希不同立即构建失败，提示首次定义位置与冲突条目；哈希相同则复用不重复写。
 - Q: 未指定目标名时自动生成文件基名采用何种稳定方案? → A: 使用前缀 `lm-` + 正规化内容 SHA256 哈希前 16 个十六进制字符 (共 19 字符)，长度与可读性平衡并提供 64bit 熵；与缓存键独立，冲突极低（<1e-11 级别针对 ≤5k 公式）。
  - Q: 正规化内容算法选哪种策略以计算文件基名与 content_hash? → A: 采用 Option E（仅去 UTF-8 BOM，保留原始所有空白、制表符、行结尾 CRLF/LF 原样），不裁剪首尾，不折叠内部空白；跨平台行结尾差异将导致不同哈希，视为可接受的构建环境差异；理由：最大限度保持 LaTeX 敏感空白（对某些宏可能影响）与调试可追溯性。
- - Q: 性能指标阈值是否在 v1 规格中量化? → A: 选 Option E（暂不固化具体数值）；定义“性能可接受”= 简单公式（≤120 字符，无自定义 preamble）冷启动渲染不会显著拖慢 CI（经验目标 p95 < 3s，如超过需在后续基准后回补强制阈值条目）。
  - Q: 集成 / CLI 层测试的文件系统隔离策略? → A: 使用 Aruba (RSpec) 沙箱，每个示例独立临时目录与隔离环境变量，避免状态泄漏并便于命令行行为回归测试。
  - Q: 统计输出格式策略? → A: 选 MIN：当日志级别≥info 且至少处理 1 个表达式，在渲染会话结束时输出单行纯文本：`latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>`；字段顺序与名称稳定且永不新增额外键；`avg_render_ms` 为所有实际执行渲染（非缓存命中）耗时的算术平均（四舍五入到整数 ms），`avg_hit_ms` 为所有命中耗时平均（若无命中则为 0）；quiet 或低于 info 不输出；禁止在同一会话重复输出多行统计。
 - Q: v1 HTML 可访问性文本策略（渲染产物标签）采用哪种方案? → A: 选 Option D：alt=原始 LaTeX（逐字），并在标签上添加 `role="math"` 与 `data-latex-original` 属性以利辅助技术与后续增强（无截断策略；与内容哈希逻辑独立）。
@@ -75,6 +74,11 @@ When creating this spec from a user prompt:
 
 - Q: 失败占位（on-error=log）HTML 呈现策略? → A: 使用 `<pre class="highlight latexmath-error">`；内部顺序包含：1) 简短错误描述 2) 执行命令 3) stdout 4) stderr 5) 原始 AsciiDoc 文本 6) 生成的 LaTeX 源；该占位不缓存、不写入统计 renders、仅在策略=log 且单表达式失败时生成；保留换行与缩进供诊断；不截断（未来如需截断将引入独立属性并保持向后兼容）。
 - Q: 当文档设置 `:stem: latexmath` 时，对 `stem:[...]` 内联宏与 `[stem]` 块应采用何种语义? → A: 完全别名（Option A）：`stem:[...]` / `[stem]` 直接视为 `latexmath:[...]` / `[latexmath]`，共享属性解析、缓存键（仍仅区分块 vs 内联，不区分 stem/latexmath 入口名）、统计与错误处理；不引入新入口类型维度；仅在 `:stem: latexmath` 时启用。
+ - Q: 是否要在 v1 即刻引入可量化的性能验收阈值（用于自动化性能回归测试）？ → A: 选 C（继续延后数值化；维持“记录基准不设硬门槛”策略；沿用既有性能 Clarification 与 FR-042 触发后续硬阈值化条件，不新增 MUST 数值约束；取代最早期临时 Option E 描述）。
+ - Q: 同时存在 dvisvgm 与 pdf2svg 时 SVG 默认转换工具优先级？ → A: 选 A：优先 dvisvgm（使用 `dvisvgm --pdf` 从 PDF 转 SVG；不走 DVI 流程）；缺少 dvisvgm 时回退 pdf2svg；不并行尝试；未来可考虑添加 `svg-tool=` 以显式覆写。
+ - Q: tectonic 引擎在需要动态获取缺失包时的网络策略？ → A: 不特殊处理；扩展不检测 / 拦截 tectonic 在线包下载；tectonic 视为普通编译引擎；用户通过 `pdflatex=` 或文档级 `:latexmath-pdflatex:` 指定使用哪种引擎（含传入值为 `tectonic`）；若需完全离线可复现需用户自行预缓存或改用传统引擎；缓存键不包含动态下载包列表，仅含工具版本签名（见 FR-011）。
+ - Q: 引擎选择与 pdflatex 命令覆写优先级策略？ → A: 文档级 `:latexmath-pdflatex:` 优先，其次全局 `:pdflatex:`，元素级 `pdflatex=` 覆写二者；默认基线命令 `pdflatex -interaction=nonstopmode -file-line-error`；若用户提供的任何一层命令串未包含 `-interaction=` 子串则自动追加 `-interaction=nonstopmode`；未包含 `-file-line-error` 则追加 `-file-line-error`；两者判断独立且只追加缺失项；追加顺序固定：先 `-interaction=nonstopmode` 后 `-file-line-error`；若命令串已包含相应片段（任意位置）则不重复；该自动追加仅适用于 `pdflatex`；其它引擎单独澄清见下一条。
+ - Q: 其它引擎 (xelatex / lualatex / tectonic) 的命令解析与自动附加策略？ → A: 选 B：`xelatex` 与 `lualatex` 采用与 pdflatex 等价的分层与双标志自动追加策略（检测并追加 `-interaction=nonstopmode` 与 `-file-line-error`，顺序同 pdflatex；已存在任一则不重复追加）；`tectonic` 原样执行（不追加这两个标志）；三类引擎均支持元素级 `<engine>=`、文档级 `:latexmath-<engine>:`、全局 `:<engine>:` 分层；默认命令：`xelatex -interaction=nonstopmode -file-line-error`、`lualatex -interaction=nonstopmode -file-line-error`、`tectonic`；未检测到 `<engine>=` / `:latexmath-<engine>:` / `:<engine>:` 时回退默认；tectonic 跳过自动追加逻辑。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -108,7 +112,7 @@ When creating this spec from a user prompt:
 - **FR-003**: MUST 允许用户通过属性选择编译引擎 (pdflatex/xelatex/lualatex/tectonic)。
 - **FR-004**: MUST 在缺少所需工具链时以可操作错误终止，列出缺失命令与建议解决方式。
 - **FR-005**: MUST 在同一内容+配置组合下重复构建时命中缓存且不重复调用外部命令（命中率可统计）。
-- **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 早期草案命名弃用（可作为别名接受但不在文档公开）。
+- **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`xelatex=`、`lualatex=`、`tectonic=`、`dvisvgm=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 早期草案命名弃用（可作为别名接受但不在文档公开）。
 - **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。
 - **FR-008**: MUST 生成的输出文件置于 `imagesoutdir`（若未设置则退回 `imagesdir` 再退回文档目录）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。
@@ -117,7 +121,7 @@ When creating this spec from a user prompt:
 - **FR-012**: MUST 在任何引起缓存键组成部分变化时强制重新渲染。
 - **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
 - **FR-014**: MUST 在渲染失败时（非 0 退出码）输出：执行命令、退出码、日志文件路径、建议下一步。
-   - NOTE: 与 FR-045 协同；当当前作用域（元素→文档）解析 `on-error=abort` 时触发 fail-fast；否则记录错误并生成占位（见 FR-045）。
+   - NOTE: 与 FR-045/FR-046 协同；当当前作用域（元素→文档）解析 `on-error=abort` 时触发 fail-fast；否则记录错误并生成占位（占位结构见 FR-046，策略见 FR-045）。
 - **FR-015**: MUST 支持用户关闭缓存（文档级或元素级），关闭后不读取也不写入缓存。
 - **FR-016**: MUST 允许 `latexmath-preamble` 追加多行文本；空值不产生额外空行副作用。
 - **FR-017**: MUST 默认禁止潜在危险的外部命令执行（无显式允许时不启用 shell escape）。
@@ -157,6 +161,18 @@ When creating this spec from a user prompt:
     5. `Source (AsciiDoc):` 原始表达式（如为块包含多行）
     6. `Source (LaTeX):` 生成的 `.tex` 文件主内容（preamble + 公式）
    分节之间以单个空行分隔；仅进行 HTML 必要转义（`&`, `<`, `>` 等）；不额外截断；不写入缓存；不计入成功渲染统计；未来若需截断/精简将通过新增属性控制并保持向后兼容。
+
+- **FR-047**: MUST 对 `format=svg` 的转换采用确定性工具优先策略：启动时探测可用工具（结合 FR-020），若存在 `dvisvgm` 则使用 `dvisvgm --pdf`（始终通过 PDF 中间产物转换为 SVG；不依赖 DVI 流程）；若缺少 `dvisvgm` 且存在 `pdf2svg` 则使用 `pdf2svg`；二者皆缺失时按 FR-004 生成缺失工具错误；当首选工具成功时不得回退或尝试次级工具；本策略不引入并行尝试；未来若需用户显式覆写将新增属性（例如 `svg-tool=`）而不改变该默认顺序。
+ - **FR-048**: MUST 将 `tectonic` 视为普通可选编译引擎之一，不引入专有网络策略：扩展不阻断其在线按需包获取，也不强制离线；未缓存包导致的首次网络下载行为不写入或修改缓存键（缓存键中已有工具版本签名满足区分，见 FR-011）；若在严格离线 / 断网环境构建失败应提示用户改用其它引擎或预先本地预热 tectonic 缓存；网络失败（超时、无法解析域名等）按引擎失败处理（FR-014/FR-045）；未来如需对 tectonic 网络进行策略化（例如强制离线模式）将新增独立属性而不破坏默认兼容。
+ - **FR-049**: MUST 解析 `pdflatex` 基线命令时采用层级优先级：元素级 `pdflatex=` > 文档级 `:latexmath-pdflatex:` > 全局 `:pdflatex:` > 默认 `pdflatex -interaction=nonstopmode -file-line-error`；解析出首个可用命令串后执行规范化：
+    1. 若不含子串 `-interaction=`（任意形式，如 `-interaction=batchmode` 亦视为已含）则追加 `-interaction=nonstopmode`；
+    2. 再检查是否含 `-file-line-error`；若缺失追加 `-file-line-error`；
+    3. 追加顺序固定（interaction 优先，file-line-error 次之），确保生成命令稳定；
+    4. 只追加缺失标志，不改写已存在值；
+    5. 追加不改变缓存键（缓存键仅含工具版本签名等 FR-011 字段），视为命令规范化；
+    6. 若用户命令包含管道/重定向亦整体扫描子串；
+    7. 该规范化当前仅适用于 `pdflatex`（其它引擎规则见 FR-050）。
+ - **FR-050**: MUST 对 `xelatex` 与 `lualatex` 采用与 FR-049 等价的分层与双标志自动附加逻辑：元素级 `xelatex=` / `lualatex=` > 文档级 `:latexmath-xelatex:` / `:latexmath-lualatex:` > 全局 `:xelatex:` / `:lualatex:` > 默认 `xelatex -interaction=nonstopmode -file-line-error` / `lualatex -interaction=nonstopmode -file-line-error`；规范化流程：若缺少 `-interaction=` 则追加 `-interaction=nonstopmode`，随后若缺少 `-file-line-error` 再追加；顺序与 FR-049 一致；仅追加缺失项，不改写已有；追加不改变缓存键；`tectonic` 层级：元素级 `tectonic=` > 文档级 `:latexmath-tectonic:` > 全局 `:tectonic:` > 默认 `tectonic`，无任何自动追加（参见 FR-048）。
 
 
 ### Key Entities *(include if feature involves data)*
