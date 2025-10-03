@@ -24,7 +24,7 @@
 
 | 阶段 | 步骤 | 默认命令 | 典型输出 | 关键属性 |
 | --- | --- | --- | --- | --- |
-| 全局控制 | 解析 Asciidoctor 属性、决定缓存策略与输出格式 | *(无)* | *(配置预处理)* | `stem`, `latexmath-format`, `latexmath-cache`, `latexmath-cache-dir` |
+| 全局控制 | 解析 Asciidoctor 属性、决定缓存策略与输出格式 | *(无)* | *(配置预处理)* | `stem`, `latexmath-format`, `latexmath-cache`, `latexmath-cachedir` |
 | 阶段一 | 生成临时 `.tex` 文档 | *(模板生成)* | `.tex` | `latexmath-preamble`, `latexmath-keep-artifacts`, `latexmath-artifacts-dir` |
 | 阶段二 | 调用 LaTeX 引擎编译 | `pdflatex` | `.pdf` | `pdflatex`（可指向 `xelatex`/`lualatex`/`tectonic` 等） |
 | 阶段三（A） | 直接输出 PDF | *(跳过额外命令)* | `.pdf` | `latexmath-format=pdf`、块/内联 `format=pdf` |
@@ -38,9 +38,11 @@
 | `stem` | `:stem: latexmath` 或 `:stem: tex` | *(无)* | *(未设置)* | 启用 Asciidoctor 的 STEM 管线，让 latexmath 扩展接管块与内联渲染。 |
 | `latexmath-format` | `:latexmath-format: svg` | `[latexmath, format=png]` / `latexmath:[...,format=pdf]` | `svg` | 选择最终输出格式：`pdf`、`svg`、`png`。决定后续阶段是否需要额外转换。 |
 | `latexmath-cache` | `:latexmath-cache: false` | `[latexmath, cache=false]` / `latexmath:[...,cache=false]` | `true` | 控制缓存使用；关闭后每次重新调用工具链。 |
-| `latexmath-cache-dir` | `:latexmath-cache-dir: .cache/latexmath` | `[latexmath, cache-dir=...]` *(可选)* | `<outdir>/.asciidoctor/latexmath` | 指定缓存目录位置。相对路径基于文档目录解析。 |
+| `latexmath-cachedir` | `:latexmath-cachedir: .cache/latexmath` | `[latexmath, cachedir=...]` *(可选)* | `<outdir>/.asciidoctor/latexmath`（若设置 `:imagesdir:` 则回退 `<outdir>/<imagesdir>`，见规范 FR-037） | 指定缓存目录位置。相对路径基于文档目录解析。 |
 
 > 缓存相关选项同样可以通过块级 `%nocache` 开关控制，详见后文“可用选项”。
+>
+> 兼容性：旧名 `latexmath-cache-dir`（文档级）与块级 `cache-dir=` 仍被接受并输出一次 info 级弃用提示；推荐使用规范名称 `latexmath-cachedir` / `cachedir=`。
 
 ## 阶段一：LaTeX 文档组装（LaTeX → `pdflatex` 输入）
 

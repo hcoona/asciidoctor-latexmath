@@ -35,8 +35,8 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T015 [P] Stem alias equivalence: `spec/integration/stem_alias_spec.rb` (stem: vs latexmath: single render) (Scenario 5 / FR-001/011).
 ### Additional Behavior Specs (Pre-Implementation)
 - [ ] T016 [P] Accessibility markup spec: `spec/integration/accessibility_spec.rb` (alt=raw latex, role=math, data-latex-original) (FR-043).
-- [ ] T017 [P] Attribute precedence spec: `spec/integration/attribute_precedence_spec.rb` (element > doc; positional overrides) (FR-006/009/016/037).
-- [ ] T018 [P] Alias deprecation spec: `spec/integration/deprecated_alias_spec.rb` (one info log for cache-dir) (FR-037).
+- [ ] T017 [P] Attribute precedence spec: `spec/integration/attribute_precedence_spec.rb` (element `cachedir=` > doc `:latexmath-cachedir:` > imagesdir fallback > default; positional overrides) (FR-006/009/016/037)。
+- [ ] T018 [P] Alias deprecation spec: `spec/integration/deprecated_alias_spec.rb` (using legacy `cache-dir=` once emits info log naming canonical `cachedir`) (FR-037).
 - [ ] T019 [P] Conflict detection spec: `spec/integration/conflict_detection_spec.rb` (different signatures same basename error) (FR-040).
 - [ ] T020 [P] Error placeholder spec: `spec/integration/error_placeholder_spec.rb` (on-error=log placeholder sections order) (FR-046).
 
@@ -87,6 +87,38 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T058 Release rake tasks + gem build verification (reproducibility spot-check) depends: T057.
 - [ ] T059 [P] Performance baseline doc `specs/001-asciidoctor-latexmath-asciidoctor/performance-baseline.md` (capture p50/p95 cold/warm) depends: T051.
 - [ ] T060 Final verification checklist (run suite twice; capture stats line; ensure no duplicate stats output) depends: T051–T058.
+
+## Phase 3.7: Additional Coverage (Remediation A3–A5, U4, C1–C5, C7–C9)
+- [ ] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
+- [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5).
+- [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (two distinct long formulas produce different keys; artificially force digest collision via stub → conflict or separate artifacts) (FR-010/011 risk mitigation note).
+- [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019).
+- [ ] T065 Path traversal defense spec: `spec/integration/path_traversal_spec.rb` (basename with ../ rejected; absolute path basename error) (FR-024/025 security alignment).
+- [ ] T066 Mixed formats same doc spec: `spec/integration/mixed_formats_spec.rb` (svg + png + pdf concurrently; independent cache entries; no cross pollution) (FR-028/021/011).
+- [ ] T067 Unicode diversity spec: `spec/integration/unicode_diversity_spec.rb` (combining marks, CJK, Emoji, blackboard bold; all cache hit second run; byte-wise hash) (FR-029 U4).
+- [ ] T068 Engine normalization no-cache independence spec: `spec/integration/engine_normalization_no_cache_spec.rb` (explicit custom pdflatex already includes flags → no duplicate append; missing flag appended once; output identical except flag order deterministic) (FR-049/050 determinism).
+- [ ] T069 Atomic overwrite spec: `spec/integration/atomic_overwrite_spec.rb` (pre-create target file; render new non-cache-hit overwrites atomically; mtime changes; no prior hash read) (FR-051).
+
+## Updated Dependencies (Additions)
+T061 → T047
+T062 → T033,T036
+T063 → T031,T038
+T064 → T029,T036
+T065 → T029,T036
+T066 → T036,T038
+T067 → T036,T038
+T068 → T033,T036
+T069 → T038,T039
+
+## Validation Checklist (Additions)
+- [ ] SVG tool priority (T061) green before renderer fallback logic changes.
+- [ ] Engine precedence & normalization (T062,T068) covers A5 no-fallback & flag append.
+- [ ] Unicode diversity (T067) covers U4 enumerated set.
+- [ ] Hash collision scenario (T063) defensive behavior defined.
+- [ ] Unsupported value actionable errors (T064) align FR-019 contract.
+- [ ] Path traversal guarded (T065) security.
+- [ ] Mixed formats isolation (T066) coverage for FR-028.
+- [ ] Atomic overwrite (T069) validates FR-051.
 
 ## Dependencies (Summary)
 T002 → T001
