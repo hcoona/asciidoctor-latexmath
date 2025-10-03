@@ -39,11 +39,12 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T018 [P] Alias deprecation spec: `spec/integration/deprecated_alias_spec.rb` (using legacy `cache-dir=` once emits info log naming canonical `cachedir`) (FR-037).
 - [ ] T019 [P] Conflict detection spec: `spec/integration/conflict_detection_spec.rb` (different signatures same basename error) (FR-040).
 - [ ] T020 [P] Error placeholder spec: `spec/integration/error_placeholder_spec.rb` (on-error=log placeholder sections order) (FR-046).
+- [ ] T077 [P] Output path resolution matrix spec: `spec/integration/output_path_resolution_spec.rb` (imagesoutdir/outdir/imagesdir precedence + basename 路径越界信任策略接受性) (FR-008)。
 
 ## Phase 3.3: Core Models & Interfaces (stubs only; run after T006–T020 exist)
 - [ ] T021 [P] Stub MathExpression: `lib/asciidoctor/latexmath/math_expression.rb` (attrs, TODO invariants).
 - [ ] T022 [P] Stub RenderRequest: `lib/asciidoctor/latexmath/render_request.rb`.
-- [ ] T023 [P] (Reserved) PipelineSignature 概念合并入缓存键，无需文件；占位保持编号。
+- [ ] T023 [P] (Reserved) pipeline signature 概念已退役（参见 spec 历史说明）；编号仅占位，无需实现文件。
 - [ ] T024 [P] Stub CacheEntry: `lib/asciidoctor/latexmath/cache/cache_entry.rb`.
 - [ ] T025 [P] Skeleton DiskCache: `lib/asciidoctor/latexmath/cache/disk_cache.rb` (fetch/store/with_lock raise NotImplementedError).
 - [ ] T026 [P] Stub ToolchainRecord: `lib/asciidoctor/latexmath/rendering/toolchain_record.rb`.
@@ -62,7 +63,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T037 Extension wiring entrypoint: `lib/asciidoctor-latexmath.rb` (register only processors) depends: T036.
 
 ## Phase 3.5: Behavior Implementation & Edge Cases
-- [ ] T038 Cache store + hit logic: integrate DiskCache + CacheKey (FR-005/011/012) depends: T031,T025,T037.
+- [ ] T038 Cache store + hit logic: integrate DiskCache + CacheKey (FR-011) depends: T031,T025,T037.
 - [ ] T039 Atomic write & concurrency lock: temp + rename + optional lock file (FR-013) depends: T038.
 - [ ] T040 Conflict detection raising TargetConflictError (FR-040) depends: T028,T036,T038.
 - [ ] T041 Nocache & keep-artifacts flows (FR-007/015/021) depends: T036,T038.
@@ -122,6 +123,7 @@ T073 → T051 (performance infra) or directly after T046 (stats) — choose afte
 T074 → T038 (cache implemented)
 T075 → T011 (baseline) & T036
 T076 → T011,T036
+T077 → T017
 
 Validation Checklist (Additions / Revised)
 - [ ] SVG tool priority (T061) green before renderer fallback logic changes.
@@ -136,7 +138,7 @@ Validation Checklist (Additions / Revised)
 - [ ] Processors invariants (T070) enforces FR-025 / P1.
 - [ ] Missing tool hint (T071) covers FR-030.
 - [ ] No eviction behavior (T074) covers FR-039.
-- [ ] Inline output structure (T076) covers FR-024。
+- [ ] Output path resolution matrix (T077) covers FR-008 precedence & traversal acceptance.
 
 ## Dependencies (Summary)
 T002 → T001
@@ -174,11 +176,12 @@ T057 → T054,T055,T056
 T058 → T057
 T059 → T051
 T060 → T051,T052,T053,T058
+T077 → T017
 
 ## Parallel Execution Examples
 Group A (Contract Specs): T006 T007 T008 T009 T010
 Group B (Acceptance Specs): T011 T012 T013 T014 T015
-Group C (Behavior Pre-impl Specs): T016 T017 T018 T019 T020
+Group C (Behavior Pre-impl Specs): T016 T017 T018 T019 T020 T077
 Group D (Entity Stubs): T021 T022 T023 T024 T025 T026 T027 T028
 Group E (Renderer Stages): T034 T035
 Group F (Perf/Determinism/Stats later): T051 T052 T053
