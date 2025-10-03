@@ -22,11 +22,11 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 
 ## Phase 3.2: Tests First (Contracts & Integration) – ALL must fail initially
 ### Contract Specs
-- [ ] T006 [P] Processors contract spec: `spec/processors/processors_contract_spec.rb` (only 2 processors, no BlockMacro, alias warn once, precedence outline) (P1,P2).
-- [ ] T007 [P] Renderer pipeline contract spec: `spec/rendering/pipeline_contract_spec.rb` (stage order, signature diff, timeout placeholder) (P5).
-- [ ] T008 [P] Cache key & disk cache contract spec: `spec/cache/cache_key_contract_spec.rb` (field ordering, any included field change alters digest, atomic write expectations, engine/tool switch DOES NOT invalidate digest per P5 exclusion of engine/tool names) (P5).
-- [ ] T009 [P] Error handling contract spec: `spec/errors/error_handling_contract_spec.rb` (error classes enumerated, on-error policies abort/log behaviors pending) (FR-014/045/046).
-- [ ] T010 [P] Statistics contract spec: `spec/statistics/statistics_contract_spec.rb` (single line format regex, suppression rules, rounding) (FR-022/035).
+- [ ] T006 [P] Processors contract spec: `spec/processors/processors_contract_spec.rb` (仅 2 处理器, 无 BlockMacro/TreeProcessor, 无 Mathematical, alias warn once, precedence outline) (P1,P2,FR-025).
+- [ ] T007 [P] Renderer pipeline contract spec: `spec/rendering/pipeline_contract_spec.rb` (stage order 固定; 变更需版本 bump; timeout 占位) (P5) *不再测试 pipeline_signature 字段*。
+- [ ] T008 [P] Cache key & disk cache contract spec: `spec/cache/cache_key_contract_spec.rb` (字段顺序: ext_version, content_hash, format, preamble_hash, ppi, entry_type; engine/tool 切换不变; atomic write expectations) (P5 / FR-011)。
+- [ ] T009 [P] Error handling contract spec: `spec/errors/error_handling_contract_spec.rb` (error classes enumerated, on-error policies abort/log behaviors pending) (FR-014/045/046)。
+- [ ] T010 [P] Statistics contract spec: `spec/statistics/statistics_contract_spec.rb` (单行格式 regex, 抑制规则, 四舍五入) (FR-022)。
 ### Integration (Acceptance) Specs
 - [ ] T011 [P] Primary story end-to-end: `spec/integration/primary_story_spec.rb` (svg default, caching across runs) (Scenario 1).
 - [ ] T012 [P] Missing tool failure: `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm & pdf2svg; actionable error) (Scenario 2 / FR-004).
@@ -43,7 +43,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 ## Phase 3.3: Core Models & Interfaces (stubs only; run after T006–T020 exist)
 - [ ] T021 [P] Stub MathExpression: `lib/asciidoctor/latexmath/math_expression.rb` (attrs, TODO invariants).
 - [ ] T022 [P] Stub RenderRequest: `lib/asciidoctor/latexmath/render_request.rb`.
-- [ ] T023 [P] Stub PipelineSignature: `lib/asciidoctor/latexmath/rendering/pipeline_signature.rb` (digest placeholder).
+- [ ] T023 [P] (Reserved) PipelineSignature 概念合并入缓存键，无需文件；占位保持编号。
 - [ ] T024 [P] Stub CacheEntry: `lib/asciidoctor/latexmath/cache/cache_entry.rb`.
 - [ ] T025 [P] Skeleton DiskCache: `lib/asciidoctor/latexmath/cache/disk_cache.rb` (fetch/store/with_lock raise NotImplementedError).
 - [ ] T026 [P] Stub ToolchainRecord: `lib/asciidoctor/latexmath/rendering/toolchain_record.rb`.
@@ -52,7 +52,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 
 ## Phase 3.4: Core Services & Pipeline
 - [ ] T029 Attribute resolver: `lib/asciidoctor/latexmath/attribute_resolver.rb` (precedence chain, alias normalization, ppi/timeout validation stubs) depends: T021,T022.
-- [ ] T030 Tool detection & version capture: `lib/asciidoctor/latexmath/rendering/tool_detector.rb` (one-time detection, signatures) depends: T026.
+- [ ] T030 Tool presence detector: `lib/asciidoctor/latexmath/rendering/tool_detector.rb` (one-time presence detection, 不采集版本号) depends: T026.
 - [ ] T031 Cache key implementation: `lib/asciidoctor/latexmath/cache/cache_key.rb` (ordered fields, digest) depends: T023,T024,T025.
 - [ ] T032 Pipeline orchestrator: `lib/asciidoctor/latexmath/rendering/pipeline.rb` (sequential execution, timing hooks) depends: T027,T023.
 - [ ] T033 Pdflatex renderer stage: `lib/asciidoctor/latexmath/rendering/pdflatex_renderer.rb` depends: T032,T030.
@@ -90,35 +90,53 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 
 ## Phase 3.7: Additional Coverage (Remediation A3–A5, U4, C1–C5, C7–C9)
 - [ ] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
-- [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5).
-- [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (two distinct long formulas produce different keys; artificially force digest collision via stub → conflict or separate artifacts) (FR-010/011 risk mitigation note).
-- [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019).
-- [ ] T065 Path traversal defense spec: `spec/integration/path_traversal_spec.rb` (basename with ../ rejected; absolute path basename error) (FR-024/025 security alignment).
-- [ ] T066 Mixed formats same doc spec: `spec/integration/mixed_formats_spec.rb` (svg + png + pdf concurrently; independent cache entries; no cross pollution) (FR-028/021/011).
-- [ ] T067 Unicode diversity spec: `spec/integration/unicode_diversity_spec.rb` (combining marks, CJK, Emoji, blackboard bold; all cache hit second run; byte-wise hash) (FR-029 U4).
-- [ ] T068 Engine normalization no-cache independence spec: `spec/integration/engine_normalization_no_cache_spec.rb` (explicit custom pdflatex already includes flags → no duplicate append; missing flag appended once; output identical except flag order deterministic) (FR-049/050 determinism).
-- [ ] T069 Atomic overwrite spec: `spec/integration/atomic_overwrite_spec.rb` (pre-create target file; render new non-cache-hit overwrites atomically; mtime changes; no prior hash read) (FR-051).
+- [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5)。
+- [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (two distinct long formulas produce different keys; artificially force digest collision via stub → conflict or separate artifacts) (FR-010/011 risk mitigation note)。
+- [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019)。
+- [ ] T065 (Removed) 路径遍历防御测试取消：信任模型允许 `..`，参见 spec A4/I1 说明。
+- [ ] T066 Mixed formats same doc spec: `spec/integration/mixed_formats_spec.rb` (svg + png + pdf concurrently; independent cache entries; no cross pollution) (FR-028/021/011)。
+- [ ] T067 Unicode diversity spec: `spec/integration/unicode_diversity_spec.rb` (combining marks, CJK, Emoji, blackboard bold; all cache hit second run; byte-wise hash) (FR-029 U4)。
+- [ ] T068 Engine normalization no-cache independence spec: `spec/integration/engine_normalization_no_cache_spec.rb` (explicit custom pdflatex already includes flags → no duplicate append; missing flag appended once; output identical except flag order deterministic) (FR-049/050 determinism)。
+- [ ] T069 Atomic overwrite spec: `spec/integration/atomic_overwrite_spec.rb` (pre-create target file; render new non-cache-hit overwrites atomically; mtime changes; no prior hash read) (FR-051)。
+- [ ] T070 Processors invariants spec: `spec/processors/invariants_spec.rb` (仅两个处理器 & 无 TreeProcessor & 无 Mathematical) (FR-025/P1)。
+- [ ] T071 Missing tool hint spec: `spec/integration/missing_tool_hint_spec.rb` (缺失 dvisvgm 提供 hint 模板) (FR-030)。
+- [ ] T072 Tool summary log spec: `spec/integration/tool_summary_spec.rb` (一次 info 行, 固定顺序) (FR-031)。
+- [ ] T073 Large formula timing spec: `spec/performance/large_formula_timing_spec.rb` (长度>3000 bytes 输出 timing 行) (FR-032)。
+- [ ] T074 No eviction behavior spec: `spec/cache/no_eviction_behavior_spec.rb` (断言无后台 eviction 线程 & 日志) (FR-039)。
+- [ ] T075 Format variants spec: `spec/integration/format_variants_spec.rb` (pdf 与 png 明确覆盖) (FR-002)。
+- [ ] T076 Inline output structure spec: `spec/integration/inline_output_structure_spec.rb` (`<img>` 引用, 无 data URI 生成) (FR-024)。
 
-## Updated Dependencies (Additions)
+Updated Dependencies (Additions / Adjustments)
 T061 → T047
 T062 → T033,T036
 T063 → T031,T038
 T064 → T029,T036
-T065 → T029,T036
 T066 → T036,T038
 T067 → T036,T038
 T068 → T033,T036
 T069 → T038,T039
+T070 → T006 (shares processors contract) & T002
+T071 → T012
+T072 → T030 (tool detector) & T011 (ensures at least one render path triggers)
+T073 → T051 (performance infra) or directly after T046 (stats) — choose after T046
+T074 → T038 (cache implemented)
+T075 → T011 (baseline) & T036
+T076 → T011,T036
 
-## Validation Checklist (Additions)
+Validation Checklist (Additions / Revised)
 - [ ] SVG tool priority (T061) green before renderer fallback logic changes.
 - [ ] Engine precedence & normalization (T062,T068) covers A5 no-fallback & flag append.
 - [ ] Unicode diversity (T067) covers U4 enumerated set.
 - [ ] Hash collision scenario (T063) defensive behavior defined.
 - [ ] Unsupported value actionable errors (T064) align FR-019 contract.
-- [ ] Path traversal guarded (T065) security.
+- [ ] Tool summary log (T072) matches FR-031 format.
+- [ ] Large formula timing (T073) matches FR-032 format & threshold.
 - [ ] Mixed formats isolation (T066) coverage for FR-028.
 - [ ] Atomic overwrite (T069) validates FR-051.
+- [ ] Processors invariants (T070) enforces FR-025 / P1.
+- [ ] Missing tool hint (T071) covers FR-030.
+- [ ] No eviction behavior (T074) covers FR-039.
+- [ ] Inline output structure (T076) covers FR-024。
 
 ## Dependencies (Summary)
 T002 → T001

@@ -72,7 +72,9 @@ specs/001-asciidoctor-latexmath-asciidoctor/
 ├── contracts/
 │   ├── renderer_pipeline.md
 │   ├── cache_key.md
-│   └── processors.md
+│   ├── processors.md
+│   ├── error_handling.md
+│   └── statistics.md
 ├── tasks.md
 └── (future) performance-baseline.md (FR-042 follow-up)
 ```
@@ -93,7 +95,7 @@ lib/
 │   │   ├── cache_entry.rb
 │   │   └── disk_cache.rb
 │   └── rendering/
-│       ├── pipeline_signature.rb
+│       # pipeline_signature.rb (removed; concept unified with cache key – see spec I5)
 │       ├── pipeline.rb
 │       ├── renderer.rb
 │       ├── pdflatex_renderer.rb
@@ -144,10 +146,9 @@ spec/
    - Validation rules from requirements
    - State transitions if applicable
 
-2. **Generate API contracts** from functional requirements:
-   - For each user action → endpoint
-   - Use standard REST/GraphQL patterns
-   - Output OpenAPI/GraphQL schema to `/contracts/`
+2. **Generate domain contracts** from functional requirements:
+   - processors / renderer_pipeline / cache_key / error_handling / statistics
+   - No separate pipeline_signature contract (merged into cache key determinism)
 
 3. **Generate contract tests** from contracts:
    - One test file per endpoint

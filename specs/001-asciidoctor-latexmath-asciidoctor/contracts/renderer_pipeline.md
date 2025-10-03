@@ -1,7 +1,7 @@
 # Contract: Renderer Pipeline
 
 ## Purpose
-Defines deterministic transformation from LaTeX source → final asset (svg/pdf/png) with no side effects beyond declared output & artifact directories.
+Defines deterministic transformation from LaTeX source → final asset (svg/pdf/png) with no side effects beyond declared output & artifact directories. (Note: legacy standalone pipeline signature removed; determinism now enforced via fixed stage list + extension version in cache key.)
 
 ## Interfaces
 ```ruby
@@ -12,8 +12,7 @@ module Asciidoctor
       class IRenderer
         # @return [String] human readable name (e.g., 'pdflatex')
         def name; end
-        # @return [String] stable fragment used when computing pipeline signature
-        def signature_fragment; end
+  # (signature fragment removed – stage stability validated by tests)
         # @param req [RenderRequest]
         # @param ctx [RenderContext]
         # @return [RendererResult] { output_path:, format:, intermediate?: } output_path absolute
@@ -56,7 +55,7 @@ RenderContext = Struct.new(
 ## Determinism Guarantees
 - No mutation of global ENV.
 - No dependency on system clock except for metadata `created_at` (excluded from cache key).
-- Pipeline signature = ordered join of `stage.signature_fragment`.
+- Stage list & order fixed; any change REQUIRES extension version bump (cache key change) and corresponding spec/test update.
 
 ## Timeouts
 - Each external command wrapped with controller that enforces `req.timeout_secs`.
@@ -64,11 +63,11 @@ RenderContext = Struct.new(
 
 ## Logging Requirements
 - INFO: start + completion of each stage (duration ms).
-- DEBUG: full command line (sanitized), working directory, tool version.
+- DEBUG: full command line (sanitized), working directory, tool presence flags (no versions recorded).
 - ERROR: standardized failure record with extracted tail of stderr (≤ 2KB) for context.
 
 ## Test Contracts
-- `spec/pipeline/pipeline_signature_spec.rb`: verifies signature changes when stage order or tool version changes.
+- `spec/rendering/pipeline_contract_spec.rb`: verifies stage order stable & change without version bump causes test failure.
 - `spec/pipeline/timeout_spec.rb`: simulates hanging process (mock) triggers timeout.
 - `spec/pipeline/determinism_spec.rb`: identical inputs produce identical outputs + cache behavior.
 
@@ -77,5 +76,5 @@ RenderContext = Struct.new(
 |-----------|----------------|
 | Stage writes outside tmp_dir | sandbox path assertion test |
 | Stage mutates ENV | snapshot ENV diff test |
-| Stage order nondeterministic | randomized invocation test must still produce same signature |
+| Stage order nondeterministic | randomized invocation test must still produce identical outputs & unchanged cache key |
 
