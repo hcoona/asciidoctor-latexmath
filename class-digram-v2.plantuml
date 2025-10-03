@@ -28,8 +28,7 @@ package "Asciidoctor::Latexmath" {
 
   class RendererBuilder {
     +build(req : RenderRequest, cache : DiskCache) : IRenderer
-    -compose_pipeline(req : RenderRequest) : IRenderer
-    -signature_for_pipeline(req : RenderRequest) : String
+    -compose_pipeline(req : RenderRequest) : IRenderer  ' fixed stage list per format; no dynamic insertion
   }
 
   class DiskCache {
@@ -45,12 +44,6 @@ package "Asciidoctor::Latexmath" {
     -builder : RendererBuilder
   }
 
-  class LatexmathBlockMacroProcessor {
-    +process(parent, target, attrs) : Asciidoctor::Block
-    -config : Configuration
-    -builder : RendererBuilder
-  }
-
   class LatexmathBlockProcessor {
     +process(parent, reader, attrs) : Asciidoctor::Block
     -config : Configuration
@@ -60,12 +53,11 @@ package "Asciidoctor::Latexmath" {
   ' ====== Layer 3: Request ======
   class RequestFactory {
     +from_inline(parent, target, attrs, cfg) : RenderRequest
-    +from_block_macro(parent, target, attrs, cfg) : RenderRequest
     +from_block(parent, reader, attrs, cfg) : RenderRequest
   }
 
   class RenderRequest {
-    +mode() : Symbol            ' :inline | :macro | :block
+    +mode() : Symbol            ' :inline | :block (no BlockMacro per P1)
     +payload() : String         ' expanded LaTeX source
     +format() : Symbol          ' :svg | :png | :pdf
     +options() : Hash           ' preamble/ppi/engine overrides
@@ -75,25 +67,22 @@ package "Asciidoctor::Latexmath" {
   ' ====== Layer 4: Renderer Abstractions ======
   interface IRenderer {
     +name() : String
-    +signature() : String
     +render(req : RenderRequest, cfg : Configuration) : String  ' returns target_path
   }
 
   class CompositeRenderer {
     +name() : String
-    +signature() : String
     +render(req : RenderRequest, cfg : Configuration) : String
     -steps : List<IRenderer>
-    -validate_chain!(steps : List<IRenderer>) : void
+    -validate_chain!(steps : List<IRenderer>) : void  ' stage list fixed per format; version bump if changed
   }
 
   class CachingRenderer {
     +name() : String
-    +signature() : String
     +render(req : RenderRequest, cfg : Configuration) : String
     -inner : IRenderer
     -cache : DiskCache
-    -cache_key(req : RenderRequest, cfg : Configuration) : String
+    -cache_key(req : RenderRequest, cfg : Configuration) : String  ' ext_version+content_hash+format+preamble_hash+ppi+entry_type
   }
 
   ' ====== Layer 5: Concrete Renderers ======
@@ -126,7 +115,6 @@ package "Asciidoctor::Latexmath" {
   ' Composition/ownership from top to lower layers
   ExtensionRegistry *----> RendererBuilder
   ExtensionRegistry *----> LatexmathInlineMacroProcessor
-  ExtensionRegistry *----> LatexmathBlockMacroProcessor
   ExtensionRegistry *----> LatexmathBlockProcessor
 
   ' Registry knows config & cache
@@ -135,12 +123,10 @@ package "Asciidoctor::Latexmath" {
 
   ' Processors depend on Builder
   LatexmathInlineMacroProcessor ----down----> RendererBuilder
-  LatexmathBlockMacroProcessor ----down----> RendererBuilder
   LatexmathBlockProcessor ----down----> RendererBuilder
 
   ' Processors create requests
   LatexmathInlineMacroProcessor ---down---> RequestFactory
-  LatexmathBlockMacroProcessor ---down---> RequestFactory
   LatexmathBlockProcessor ---down---> RequestFactory
 
   RequestFactory ---right---> RenderRequest
@@ -165,17 +151,17 @@ package "Asciidoctor::Latexmath" {
 
   ' ====== Notes ======
   note right of CompositeRenderer
-    No runtime fallback; pipeline is fixed per request.
-    Each concrete renderer exposes {static} available?()
-    so Builder can decide composition.
+    Stage list fixed per output format (svg/pdf/png).
+    Any stage add/remove/reorder => bump ext_version.
+    No dynamic fallback insertion; missing tool => error.
   end note
 
   note right of CachingRenderer
-    End-to-end disk cache wrapper.
-    Key := ext_version + req.content_hash +
-           pipeline_signature + req.format +
-           ppi + preamble_hash + engine/tool versions +
-           req.mode. Renderer must be idempotent.
+    Disk cache wrapper.
+    Key fields (ordered): ext_version, content_hash,
+      format, preamble_hash, ppi, entry_type.
+    Excludes engine/tool names & versions.
+    Engine/tool switch => cache hit.
   end note
 
   note bottom of RenderRequest

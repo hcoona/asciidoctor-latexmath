@@ -1,6 +1,6 @@
 # asciidoctor-latexmath 系统设计
 
-**修订日期:** 2025-10-02
+**修订日期:** 2025-10-03
 **作者:** GitHub Copilot (助手)
 
 ## 背景与目标
@@ -19,7 +19,7 @@ asciidoctor-latexmath 为 Asciidoctor 提供离线 `latexmath` 渲染能力，�
 - 处理 `[latexmath]` 块 与 `latexmath:` 内联宏，仅使用 `BlockProcessor` 与 `InlineMacroProcessor`；显式不支持 `latexmath::` 块宏（宪法 P1）。
 - 支持 `pdflatex`、`xelatex`、`lualatex`、`tectonic` 等编译器，允许按元素覆盖。
 - 支持输出 `pdf` / `svg` / `png`，自动对接 `imagesdir` / `imagesoutdir` 与资源基名策略。
-- 缓存渲染结果，缓存键需囊括内容、模式、格式、引擎、preamble、工具链及选项。
+- 缓存渲染结果；缓存键仅包含（有序）`ext_version`、`content_hash`、`format`、`preamble_hash`、`ppi`（非 png 记 '-'）、`entry_type`（block|inline），不含引擎 / 转换工具名称及其版本（参见宪章 P5 / FR-011）。
 - 覆盖 `AsciidoctorLatexmathAttributes.md` 列出的全部属性与选项，包括 `nocache`、`keep-artifacts` 等。
 
 ### 非功能性需求
@@ -36,7 +36,7 @@ asciidoctor-latexmath 为 Asciidoctor 提供离线 `latexmath` 渲染能力，�
 
 - **注册入口**：公开 `Asciidoctor::Latexmath::ExtensionRegistry.register!`，与 asciidoctor-diagram 的 DSL 调用方式完全一致。
 - **配置命名**：沿用 `*-format`、`*-cache`、`*-cache-dir`、`pdflatex` 等属性前缀，可通过 CLI `-a` 和文档头设置。
-- **缓存结构**：默认写入 `<outdir>/.asciidoctor/latexmath`，缓存条目包含签名、命令版本、生成时间，与 asciidoctor-diagram 的磁盘缓存行为一致，并支持 `diagram-nocache-option` 级别的禁用策略（对应 `latexmath-cache=false` / `nocache`）。
+- **缓存结构**：默认写入 `<outdir>/.asciidoctor/latexmath`，条目（产物 + metadata.json）键字段为最小集合（不含引擎 / 工具名称与版本）；支持 `latexmath-cache=false` / `%nocache`；引擎/工具切换不使缓存失效。
 - **元数据**：生成 JSON manifest，记录命令行、文件哈希和尺寸信息，用于调试与增量构建。
 - **目录策略**：优先 `imagesoutdir`，回退 `imagesdir`，再回退到文档目录；调试产物遵循 `latexmath-artifacts-dir`，与 asciidoctor-diagram 的 artifact 策略一致。
 
@@ -47,11 +47,11 @@ asciidoctor-latexmath 为 Asciidoctor 提供离线 `latexmath` 渲染能力，�
 1. **入口层** —— 扩展注册与共享依赖注入；
 2. **配置与建造层** —— 解析属性、构建渲染器；
 3. **处理器层** —— 块与内联 Processor 捕获 AST（无块宏，遵循宪法 P1）；
-4. **请求层** —— 构造 `RenderRequest` 并计算缓存签名；
+4. **请求层** —— 构造 `RenderRequest` 并计算缓存键；
 5. **渲染抽象层** —— 组合、包装 Renderer；
 6. **具体渲染器层** —— 调用外部命令完成格式转换。
 
-### PlantUML 类图
+### PlantUML 类图（已移除 pipeline_signature / BlockMacro）
 
 ```plantuml
 @startuml asciidoctor-latexmath Class Diagram (Top→Down Layout v2)
@@ -84,8 +84,7 @@ package "Asciidoctor::Latexmath" {
 
   class RendererBuilder {
     +build(req : RenderRequest, cache : DiskCache) : IRenderer
-    -compose_pipeline(req : RenderRequest) : IRenderer
-    -signature_for_pipeline(req : RenderRequest) : String
+    -compose_pipeline(req : RenderRequest) : IRenderer  ' fixed stage list per format
   }
 
   class DiskCache {
@@ -124,25 +123,22 @@ package "Asciidoctor::Latexmath" {
   ' ====== Layer 4: Renderer Abstractions ======
   interface IRenderer {
     +name() : String
-    +signature() : String
     +render(req : RenderRequest, cfg : Configuration) : String  ' returns target_path
   }
 
   class CompositeRenderer {
     +name() : String
-    +signature() : String
     +render(req : RenderRequest, cfg : Configuration) : String
     -steps : List<IRenderer>
-    -validate_chain!(steps : List<IRenderer>) : void
+    -validate_chain!(steps : List<IRenderer>) : void  ' stage list fixed; version bump if changed
   }
 
   class CachingRenderer {
     +name() : String
-    +signature() : String
     +render(req : RenderRequest, cfg : Configuration) : String
     -inner : IRenderer
     -cache : DiskCache
-    -cache_key(req : RenderRequest, cfg : Configuration) : String
+    -cache_key(req : RenderRequest, cfg : Configuration) : String  ' ext_version+content_hash+format+preamble_hash+ppi+entry_type
   }
 
   ' ====== Layer 5: Concrete Renderers ======
@@ -211,17 +207,16 @@ package "Asciidoctor::Latexmath" {
 
   ' ====== Notes ======
   note right of CompositeRenderer
-    No runtime fallback; pipeline is fixed per request.
-    Each concrete renderer exposes {static} available?()
-    so Builder can decide composition.
+    Stage list fixed per format (svg/pdf/png).
+    Any add/remove/reorder => bump ext_version.
+    Missing tool => error (no dynamic insertion).
   end note
 
   note right of CachingRenderer
-    End-to-end disk cache wrapper.
-    Key := ext_version + req.content_hash +
-           pipeline_signature + req.format +
-           ppi + preamble_hash + engine/tool versions +
-           req.mode. Renderer must be idempotent.
+    Cache Key fields (ordered): ext_version, content_hash,
+      format, preamble_hash, ppi, entry_type.
+    Excludes engine/tool names & versions.
+    Engine/tool switch => hit.
   end note
 
   note bottom of RenderRequest
@@ -240,11 +235,11 @@ package "Asciidoctor::Latexmath" {
 
 ## 渲染流程
 
-1. **捕获阶段**：Processor 从 AST 收集 LaTeX 段落/宏，并通过 `RequestFactory` 构造 `RenderRequest`。此阶段会解析元素属性、`options="nocache"` 等标记，补齐请求上下文。
-2. **渲染器选择**：`RendererBuilder` 基于请求格式、配置偏好及可用命令，生成 `CompositeRenderer` 管线；`CachingRenderer` 包裹结果，先查 `DiskCache` 再决定是否执行。
+1. **捕获阶段**：Processor 从 AST 收集 LaTeX 内容（块 / 内联），通过 `RequestFactory` 构造 `RenderRequest`。解析元素属性、`%nocache` / `cache=` 等标记，补齐请求上下文。
+2. **渲染器选择**：`RendererBuilder` 基于格式选择 *固定阶段列表* 生成 `CompositeRenderer`；`CachingRenderer` 包裹结果，先查 `DiskCache` 再决定是否执行。
 3. **管线执行**：`CompositeRenderer` 顺序执行管线步骤，例如 `PdflatexRenderer` → `Pdf2SvgRenderer` 或 `PdflatexRenderer` → `MagickRenderer`。每一步产生的文件通过临时目录管理，符合 `latexmath-keep-artifacts` 策略。
-4. **产物处理**：渲染成功后将结果写入 `imagesoutdir`，生成 JSON 元数据（尺寸、checksum、命令版本），并在需要时保留 `.tex`/`.log`。
-5. **集成返回**：Processor 按 AST 模式构造图像块、块宏或内联节点，尊重 `inline_data_uri?` 与 data URI 策略。
+4. **产物处理**：渲染成功后写入 `imagesoutdir`，生成 JSON 元数据（尺寸、checksum、生成时间），不记录命令版本；需要时保留 `.tex`/`.log`。
+5. **集成返回**：Processor 构造图像块或内联节点；v1 仅文件引用（data URI 行为由核心 `:data-uri:` 决定，扩展不主动生成 data: URL）。
 
 ## 组件职责
 
@@ -255,9 +250,9 @@ package "Asciidoctor::Latexmath" {
 ### Layer 1 — Configuration & RendererBuilder
 - `Configuration.from_document` 读取文档级属性，计算默认格式、缓存目录、artifact 目录及 inline data URI 策略。
 - `RendererBuilder` 负责：
-  - 签名生成：`signature_for_pipeline` 组合格式、引擎、后处理工具与 DPI；
-  - 管线装配：根据 `pdflatex`、`latexmath-pdf2svg`、`latexmath-png-tool` 等属性实例化对应 Renderer；
-  - 外部命令检测：依赖 `available?` 静态方法判断工具可用性，不在运行时回退，确保预测性。
+  - 固定阶段装配：format → 预定义阶段序列（如 svg: [Pdflatex, Pdf→Svg]）。
+  - 阶段序列调整需伴随 ext_version bump 与测试更新。
+  - 外部命令检测：仅判断可用性；缺失报错，不回退次级阶段。
 
 ### Layer 2 — Processors
 - `LatexmathBlockProcessor`：构造 `Asciidoctor::Block` 结果，支持 `[%nocache]`、`options="keep-artifacts"` 等开关。
@@ -273,7 +268,7 @@ package "Asciidoctor::Latexmath" {
 ### Layer 4 — Renderer 抽象
 - `IRenderer` 定义最小接口；所有 Renderer 返回最终产物路径。
 - `CompositeRenderer` 按顺序执行若干 Renderer，每个步骤都校验输入/输出类型以捕捉配置错误。
-- `CachingRenderer` 调用 `DiskCache`，缓存键包含：扩展版本、content hash、pipeline 签名、格式、ppi、preamble hash、引擎/工具版本、请求模式。
+- `CachingRenderer` 调用 `DiskCache`，缓存键字段：ext_version, content_hash, format, preamble_hash, ppi, entry_type；不含引擎/工具名称或版本。
 
 ### Layer 5 — 具体 Renderer
 - `PdflatexRenderer`：负责 `.tex` → `.pdf`，读取 `pdflatex`、`latexmath-preamble`、`latexmath-keep-artifacts`。
@@ -283,9 +278,9 @@ package "Asciidoctor::Latexmath" {
 
 ## 缓存与元数据
 
-- `DiskCache` 以内容寻址的目录结构存储：
-  - `cache/<hash>/rendered`：最终文件软链接或拷贝；
-  - `cache/<hash>/metadata.json`：包含生成时间、命令及版本、格式、尺寸、输入哈希、`nocache` 标记。
+-- `DiskCache` 以内容寻址的目录结构存储：
+  - `cache/<digest>/artifact`：最终文件；
+  - `cache/<digest>/metadata.json`：`{version,key,format,content_hash,preamble_hash,ppi,entry_type,created_at,checksum,size_bytes}`。
 - 支持：
   - 文档级 `:latexmath-cache: false` 或元素级 `cache=false`、`%nocache`；
   - `latexmath-cache-dir` 覆写缓存位置，兼容 asciidoctor-diagram；
@@ -334,11 +329,12 @@ package "Asciidoctor::Latexmath" {
 
 ## 风险与缓解
 
-- **工具链差异**：不同平台命令行为不一致 → 使用 `available?` 探测并提供清晰错误信息；允许用户自定义命令路径。
-- **缓存错配**：属性变化导致旧缓存失效 → 缓存键纳入所有可影响结果的属性，并记录扩展版本；提供清理脚本。
-- **性能瓶颈**：大量公式导致渲染缓慢 → 启用缓存、允许用户调整并行度，并可在未来实现批量渲染。
-- **安全风险**：LaTeX 提供外部命令执行能力 → 默认使用 `-no-shell-escape`，提供文档提醒使用者在可信环境运行。
+- **工具链差异**：引擎/转换工具差异可能造成字节级差异 → 文档警示 + 建议固定单一工具链；缓存键不含工具名称避免失效。
+- **缓存错配**：字段遗漏造成错误命中 → 最小字段集合 + 测试（引擎切换稳定性）防止回归。
+- **结构变更未 bump**：阶段调整却复用旧缓存 → 阶段守护测试 + review checklist。
+- **性能瓶颈**：首次渲染多 → 利用缓存热路径 O(N)，统计行度量命中 / 渲染耗时。
+- **安全风险**：LaTeX 外部命令 → 默认禁止 shell-escape，参数白名单 + 超时。
 
 ## 结论
 
-新版设计完全采用 `class-digram-v2.plantuml` 的架构，围绕 Processor → Request → Renderer 的职责链构建模块化流水线；同时保持与 asciidoctor-diagram 的配置、缓存和元数据约定一致，确保后续实现具备一致性、可维护性与可扩展性。
+新版设计采用更新后的 `class-digram-v2.plantuml`（移除 pipeline_signature），以固定阶段列表 + 最小缓存键策略支撑 Processor → Request → Renderer 的模块化流水线，保持与 asciidoctor-diagram 的使用体验一致并提升确定性与可维护性。
