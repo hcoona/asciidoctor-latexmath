@@ -1,20 +1,19 @@
 <!--
 Sync Impact Report
-Version: 2.0.0 -> 3.0.0
+Version: 3.0.0 -> 3.1.0
 Modified Principles:
-	P5 Deterministic Rendering, Caching & Security (removed mandatory inclusion of toolchain versions in cache key; clarified exclusion)
+	P5 Deterministic Rendering, Caching & Security (replace implicit pipeline_signature notion with explicit fixed stage list + cache key field set; clarify exclusion of tool names/versions; add rule forbidding dynamic stage insertion)
 Added Sections: none
 Removed Sections: none
 Templates Updated:
-	.specify/templates/plan-template.md ⚠ (summary段含“工具版本”需改为“引擎切换不使缓存失效；缓存键不含工具名称/版本”)
-	.specify/templates/spec-template.md ⚠ (若引用缓存键字段需同步去除 toolchain versions)
-	.specify/templates/tasks-template.md ⚠ (任务 T008/T050 描述里 ‘tool version impact’ 需改为 ‘engine switch does NOT invalidate cache’ 测试)
-	.specify/templates/agent-file-template.md ⚠ (如存在缓存键字段说明需同步)
+	.specify/templates/plan-template.md ✅ (no direct pipeline_signature reference; no change required)
+	.specify/templates/spec-template.md ✅ (spec now references historical removal only)
+	.specify/templates/tasks-template.md ✅ (tasks updated: no pipeline_signature field tests; cache key fields enumerated)
+	.specify/templates/agent-file-template.md ✅ (no pipeline_signature wording)
 Follow-up TODOs:
- - Update plan.md summary 删除“工具版本”或改为“缓存不含工具/引擎名称与版本”
- - Update tasks.md: 调整 T008/T050 描述与预期测试断言；新增测试：在不同引擎间切换仍命中缓存
- - Update contracts/cache_key.md（若存在）列出字段清单（无工具链版本）
-Rationale: Project decision to maximize cache reuse across LaTeX engine / converter switches. Governance principle P5 redefined → MAJOR bump.
+ - README / DESIGN: add short note that stage list change requires version bump (to align with updated P5)
+ - Remove any stale references if future branches still mention pipeline_signature digest
+Rationale: Clarify determinism mechanism without adding new mandatory data in cache key. This is an additive governance clarification ⇒ MINOR bump.
 -->
 
 # asciidoctor-latexmath Constitution
@@ -60,15 +59,17 @@ Rationale: Enforces consistent contributor experience and dependable releases.
 
 ### P5. Deterministic Rendering, Caching & Security
 Rules:
-- Rendering pipeline MUST be pure: output = f(content, normalized_attributes, pipeline_signature) with no ambient state.
-- Cache key MUST include: content hash, normalized attribute signature (sorted & filtered), output format, preamble hash (if any), PPI (for raster), entrypoint type (block|inline), extension (gem) version.
-- Cache key MUST NOT include: LaTeX engine executable name / version (pdflatex, xelatex, lualatex, tectonic) NOR conversion tools (dvisvgm, pdf2svg, pdftoppm, magick, gs) NOR their versions.
-- Switching engine or conversion tool (while content & included fields unchanged) MUST yield a cache hit (no re-render) unless user explicitly clears cache.
-- Documentation MUST warn that differing toolchains MAY produce byte-level output differences (fonts, metadata). Teams requiring strict reproducibility MUST pin a single toolchain per build or enable a future strict mode.
-- On cache hit MUST skip external tool execution entirely.
-- Shell execution MUST reject untrusted attribute injection (whitelisted args only) and enforce timeout & resource limits.
-- Inline rendering (data URI / embedded SVG) MUST be optional and disabled by default unless explicitly requested.
-Rationale: Excluding toolchain identity maximizes cache reuse and build performance. Trade‑off (possible minor output drift across engines) is documented; strict mode can be added later via additive principle without breaking the default.
+- Rendering pipeline MUST be pure: output = f(content, normalized_attributes, fixed_stage_list) with no ambient state or hidden globals.
+- Stage list MUST be fixed per output format (svg|pdf|png) for a released version. Any addition, removal or reordering of stages MUST trigger an extension version bump (SemVer) before release.
+- Implementation MUST NOT dynamically insert, drop or reorder stages at runtime based on tool availability, environment, cache hit status, or heuristics. Missing required tools MUST raise an actionable error (fail fast) rather than mutating the stage list.
+- Cache key MUST include ONLY: content hash, normalized attribute signature (sorted & filtered), output format, preamble hash (if any), PPI (for raster), entrypoint type (block|inline), extension (gem) version. (See spec FR-011 for ordering.)
+- Cache key MUST NOT include: LaTeX engine or converter tool names, nor their versions, nor absolute filesystem paths, nor timeout values, nor stage list fingerprints (the version bump encodes those changes implicitly).
+- Switching LaTeX engine or converter tool (with included cache key fields unchanged) MUST yield a cache hit (no external process invocation).
+- Documentation MUST warn that differing toolchains MAY produce byte-level output diffs (fonts/metadata). Teams needing strict byte-for-byte reproducibility MUST pin a single toolchain or opt into a future strict mode.
+- On cache hit MUST skip external tool execution entirely (zero process spawn).
+- Shell execution MUST enforce argument allow‑listing, timeout, and resource limits; MUST NOT enable shell-escape.
+- Inline embedding (data URI / embedded SVG) is OPTIONAL and disabled by default; enabling it is an additive behavior not altering cache key unless new differentiating fields are introduced via future principle update.
+Rationale: Fixed stage list + minimal cache key guarantees deterministic reuse while maximizing cache stability across engine/tool switches. Version bumps form the explicit contract boundary for structural pipeline changes; excluding tool identity prevents unnecessary cache invalidations.
 
 ## Development Workflow & Quality Gates
 Phases (Waterfall):
@@ -118,4 +119,4 @@ Record Keeping:
 Guidance File:
 - Primary runtime guidance: LEARN.md (living log) + DESIGN.md (architecture source of truth).
 
-**Version**: 3.0.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02
+**Version**: 3.1.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-03
