@@ -30,7 +30,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 ### Integration (Acceptance) Specs
 - [ ] T011 [P] Primary story end-to-end: `spec/integration/primary_story_spec.rb` (svg default, caching across runs) (Scenario 1).
 - [ ] T012 [P] Missing tool failure: `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm & pdf2svg; actionable error) (Scenario 2 / FR-004).
-- [ ] T013 [P] Nocache png with ppi: `spec/integration/nocache_png_spec.rb` (%nocache twice, ppi valid & invalid → invalid pending) (Scenario 3 / FR-015/018).
+- [ ] T013 [P] Nocache png with ppi: `spec/integration/nocache_png_spec.rb` (%nocache twice, ppi valid & invalid → invalid pending) (Scenario 3 / FR-007/018) (FR-015 merged into FR-007).
 - [ ] T014 [P] Concurrency atomicity: `spec/integration/concurrency_spec.rb` (two processes same formula: single artifact) (Scenario 4 / FR-013).
 - [ ] T015 [P] Stem alias equivalence: `spec/integration/stem_alias_spec.rb` (stem: vs latexmath: single render) (Scenario 5 / FR-001/011).
 ### Additional Behavior Specs (Pre-Implementation)
@@ -110,6 +110,12 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T076 Inline output structure spec: `spec/integration/inline_output_structure_spec.rb` (`<img>` 引用, 无 data URI 生成) (FR-024)。
  - [ ] T079 [P] Pipeline stage immutability spec: `spec/integration/pipeline_stage_immutability_spec.rb` (缺失首选 svg 工具时 fail-fast 而非动态删减/重排阶段；stage list fingerprint 不变) (P5/FR-047/011)。
  - [ ] T081 [P] Terminology enforcement spec: `spec/integration/terminology_enforcement_spec.rb` (legacy alias 仅首次日志；重复无新增；内部使用 canonical 名称) (NFR-007/FR-037)。
+ - [ ] T082 [P] No internal parallel / no dynamic stage insertion spec: `spec/integration/no_internal_parallel_spec.rb` (单进程内渲染多个表达式验证无并行线程/进程 spawn 超出未命中数；断言阶段列表不因 tool availability 变化) (FR-038/P5, complements T079)。
+ - [ ] T083 [P] Windows path separator compatibility spec: `spec/integration/windows_path_compat_spec.rb` (使用 Windows 风格 `imagesdir`/`cachedir` 反斜杠路径 + 混合 `..` 段；同时与 POSIX 风格组合；断言最终输出/缓存目录解析一致且不依赖运行平台) (FR-008/037, C1)。
+ - [ ] T084 [P] Mixed miss spawn count spec: `spec/integration/mixed_miss_spawn_count_spec.rb` (两轮构建：首轮 N 未命中；第二轮新增 K 表达式；断言第二轮新增外部进程 = K) (FR-044 MUST(4))。
+ - [ ] T085 [P] Cache hit no directory enumeration spec: `spec/integration/cache_hit_no_enum_spec.rb` (预填充缓存后命中运行，spy 断言未调用 Dir.glob/Find；外部进程=0) (FR-044 MUST(2)/(3))。
+ - [ ] T086 [P] Memory retention spot-check spec: `spec/performance/memory_retention_spec.rb` (大量表达式渲染后 RSS 与对象数未线性增长；无全量产物集合驻留) (FR-044 MUST(5) 观察)。
+ - [ ] T087 [P] Governance coverage audit task: `spec/governance/coverage_audit_spec.rb` + `scripts/governance_audit.rb` (交叉比对 FR ↔ 任务引用；输出缺失映射提示) (FR-026 C1)。
 
 Updated Dependencies (Additions / Adjustments)
 T061 → T047
@@ -132,6 +138,12 @@ T078 → T002
 T079 → T007,T061
 T080 → T008
 T081 → T018
+T082 → T007,T036
+T083 → T017
+T084 → T080
+T085 → T038
+T086 → T051
+T087 → T060
 
 Validation Checklist (Additions / Revised)
 - [ ] SVG tool priority (T061) green before renderer fallback logic changes.
@@ -151,6 +163,12 @@ Validation Checklist (Additions / Revised)
  - [ ] Cache hit zero-spawn (T080) validates P5 / FR-011 / NFR-002。
  - [ ] Terminology enforcement (T081) single deprecation log (NFR-007/FR-037)。
  - [ ] Engine selection basic precedence (T078) covers FR-003 existence。
+ - [ ] No internal parallel execution (T082) covers FR-038 (串行保证)。
+ - [ ] Windows path compatibility (T083) covers FR-008/037 跨平台路径解析。
+	- [ ] Mixed miss spawn count (T084) covers FR-044 MUST(4) (M>0)。
+	- [ ] No directory enumeration on cache hit (T085) covers FR-044 MUST(3)。
+	- [ ] Memory retention spot-check (T086) observes FR-044 MUST(5) (非门控)。
+	- [ ] Governance coverage audit (T087) covers FR-026 流程治理映射。
 
 ## Dependencies (Summary)
 T002 → T001
@@ -210,7 +228,7 @@ Group F (Perf/Determinism/Stats later): T051 T052 T053
 - [ ] Tests precede implementation (T006–T020 before T021+)
 - [ ] External tool detection + timeout tasks (T030,T042)
 - [ ] Security restrictions task (T043)
-- [ ] Concurrency & atomic write tasks (T039,T014 integration, T039 impl)
+- [ ] Concurrency & atomic write tasks (T039,T014 integration, T039 impl, plus serial guarantee T082)
 - [ ] Statistics tasks (T010 contract, T046 impl, T053 behavior)
 - [ ] Accessibility task (T047 impl + T016 spec)
 - [ ] Determinism & performance tasks (T051,T052)
@@ -226,6 +244,8 @@ Group F (Perf/Determinism/Stats later): T051 T052 T053
 - Statistics line is immutable contract; any future field addition requires new FR + version bump.
  - T077 为后补测试未重排历史编号；新增任务使用顺序递增 (T078+)。
  - 新增任务：T078 (引擎选择基础), T079 (阶段不变), T080 (缓存命中零进程), T081 (术语弃用一次性日志)。
+ - 新增任务（本次分析修复）：T082 (串行/无动态阶段补充 FR-038), T083 (Windows 路径兼容 C1)。
+ - FR-048 (引擎网络策略) 依据产品决策 **暂不设专门测试**（U2），若后续出现差异/回归将追加任务。
 
 ---
 *Based on Constitution v3.1.0 – see `.specify/memory/constitution.md`*

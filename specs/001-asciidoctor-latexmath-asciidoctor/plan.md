@@ -30,6 +30,14 @@
 - Phase 2: /tasks command creates tasks.md
 - Phase 3-4: Implementation execution (manual or via tools)
 
+### Phase Boundary Clarification (I1)
+为避免阶段编号歧义：
+1. 本 `plan.md` 仅涵盖 Phase 0 (Research)、Phase 1 (Design & Contracts)、Phase 2 (Task Planning Approach 描述) —— /plan 在此终止，不生成或修改 `tasks.md`。
+2. `tasks.md` 生成后，其首个实现阶段从 `Phase 3.1` 开始（Setup），继续以 `3.x` 细分（测试优先、模型桩、核心实现、性能/文档、附加覆盖）。
+3. 因此不存在“缺失的 Phase 2”——Phase 2 是“描述如何生成任务”而非实际执行阶段；执行真正从 Phase 3.x 开始。
+4. 该编号分离确保：/plan 输出可在评审后冻结；/tasks 再次进入时不会回写 plan 的历史上下文；满足治理要求（FR-026）。
+本段落即对 I1（阶段命名潜在混淆）整改说明；后续文档引用阶段需明确所处文件（plan / tasks）。
+
 ## Summary
 离线（本地 LaTeX 工具链）渲染 `latexmath` 块与内联宏表达式为 `svg|pdf|png`，提供与 `asciidoctor-diagram` 风格一致的属性/缓存/目录/冲突处理语义，仅维持 Processor Duo（Block + InlineMacro）。缓存键遵循宪章 P5 / 规范 FR-011：包含内容哈希、归一化属性签名、输出格式、preamble 哈希、PPI（位图）、入口类型、扩展版本；显式不包含任何编译引擎或转换工具的名称 / 版本（引擎或工具切换不应导致缓存失效）。失败策略(`on-error`)与统计输出(单行 MIN 格式)保持可预测、可追踪、可重复构建。所有模糊点已通过 Clarifications 解决；无剩余 NEEDS CLARIFICATION。
 
@@ -40,7 +48,7 @@
 **Testing**: RSpec（单元/契约/集成/性能），Aruba（文件系统隔离），Pending 性能基准脚本。
 **Target Platform**: Linux / macOS（初始），Windows 后续评估。
 **Project Type**: 单库（Ruby gem + Asciidoctor extension）。
-**Performance Goals (Exploratory / Non-Binding v1)**: 仅收集基线（非验收门槛）。简单公式定义：Normalization-E 前 UTF-8 字节长度 ≤ 120（与 FR-042 / FR-044 一致）。观测目标（Exploratory）：冷启动简单公式 SVG p95 ≈3000ms；缓存命中平均附加开销 <5ms。若基线（FR-042 输出）显示 SVG 冷 p95 >3000ms 或 PNG 冷 p95 >3500ms 触发后续将该阈值引入为 MUST（更新 FR-044 与 README）。本节所有数据点属“可观察而非当前强制”。
+**Performance Goals (Exploratory / Non-Binding v1)**: 仅收集基线（非验收门槛）。简单公式定义：Normalization-E 前 UTF-8 字节长度 ≤ 120（与 FR-042 / FR-044 一致）。Exploratory target: 冷启动简单公式 SVG p95 ≤3000ms，PNG p95 ≤3500ms；缓存命中平均附加开销 <5ms（非 fail gate）。若 FR-042 基线输出任一指标超阈值 ⇒ 触发 FR-042 Escalation Workflow（开 issue→新增 MUST FR→README/Spec 更新）。
 **Constraints**: 纯离线、无网络依赖；禁止 TreeProcessor & BlockMacro；确定性缓存、可重复构建、超时强制 120s 默认。
 **Scale/Scope**: 支撑 ≥5k 公式近线性扩展；无内建上限；内存与状态按表达式流式处理。时间近线性定义：第二次（无新增表达式）构建外部进程数=0；新增 K 个表达式只新增 K 次外部进程；空间近线性：不常驻全部产物二进制（设计约束，参见 FR-044 说明）。
 **Outstanding Clarifications**: None (全部已解决)。
@@ -54,7 +62,7 @@
 | P2 Interface-First TDD | contracts/ 已包含 renderer_pipeline, cache_key, processors；tasks.md Phase 3.2 全部先写测试 | PASS | 无实现代码先行任务 |
 | P3 Diagram Parity | research.md 含属性对照表；差异（无 BlockMacro, `ppi` 术语）已记录 | PASS | 差异有意识且文档化 |
 | P4 Quality & Toolchain | Tasks T003 (standardrb), T004 (CI), T022/T034 (tool detect/timeout), T035 (security) | PASS | 覆盖 lint/CI/安全/超时 |
-| P5 Determinism & Security | cache key 合成列于 contracts/cache_key.md；原子写 + 锁 (T030–T031)；无 shell-escape (T035) | PASS | 统计与错误占位不污染缓存 |
+| P5 Determinism & Security | cache key 合成列于 contracts/cache_key.md（字段=FR-011: ext_version, content_hash, format, preamble_hash, ppi, entry_type）；原子写 + 锁 (T030–T031)；无 shell-escape (T035) | PASS | 统计与错误占位不污染缓存；阶段不变 T079；串行/无动态阶段新增 T082 (计划) |
 
 Complexity Deviations: None (表格留空)。
 
