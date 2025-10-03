@@ -40,6 +40,8 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T019 [P] Conflict detection spec: `spec/integration/conflict_detection_spec.rb` (different signatures same basename error) (FR-040).
 - [ ] T020 [P] Error placeholder spec: `spec/integration/error_placeholder_spec.rb` (on-error=log placeholder sections order) (FR-046).
 - [ ] T077 [P] Output path resolution matrix spec: `spec/integration/output_path_resolution_spec.rb` (imagesoutdir/outdir/imagesdir precedence + basename 路径越界信任策略接受性) (FR-008)。
+ - [ ] T078 [P] Engine selection basic spec: `spec/integration/engine_selection_basic_spec.rb` (global `:pdflatex:` vs doc `:latexmath-pdflatex:` vs block `pdflatex=` 覆写顺序；切换 pdflatex↔xelatex 不致缓存失效) (FR-003/049/050)。
+ - [ ] T080 [P] Cache hit zero-spawn spec: `spec/integration/cache_hit_zero_spawn_spec.rb` (两次构建：第二次断言 0 外部进程 spawn，通过 stub 计数) (P5/FR-011/NFR-002)。
 
 ## Phase 3.3: Core Models & Interfaces (stubs only; run after T006–T020 exist)
 - [ ] T021 [P] Stub MathExpression: `lib/asciidoctor/latexmath/math_expression.rb` (attrs, TODO invariants).
@@ -92,7 +94,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 ## Phase 3.7: Additional Coverage (Remediation A3–A5, U4, C1–C5, C7–C9)
 - [ ] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
 - [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5)。
-- [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (two distinct long formulas produce different keys; artificially force digest collision via stub → conflict or separate artifacts) (FR-010/011 risk mitigation note)。
+ - [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (simulate 16-char prefix collision → 升级为 32-char 基名无数字后缀；缓存键仍用全 64；可选 stub 二次冲突) (FR-010/011 新策略)。
 - [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019)。
 - [ ] T065 (Removed) 路径遍历防御测试取消：信任模型允许 `..`，参见 spec A4/I1 说明。
 - [ ] T066 Mixed formats same doc spec: `spec/integration/mixed_formats_spec.rb` (svg + png + pdf concurrently; independent cache entries; no cross pollution) (FR-028/021/011)。
@@ -106,6 +108,8 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T074 No eviction behavior spec: `spec/cache/no_eviction_behavior_spec.rb` (断言无后台 eviction 线程 & 日志) (FR-039)。
 - [ ] T075 Format variants spec: `spec/integration/format_variants_spec.rb` (pdf 与 png 明确覆盖) (FR-002)。
 - [ ] T076 Inline output structure spec: `spec/integration/inline_output_structure_spec.rb` (`<img>` 引用, 无 data URI 生成) (FR-024)。
+ - [ ] T079 [P] Pipeline stage immutability spec: `spec/integration/pipeline_stage_immutability_spec.rb` (缺失首选 svg 工具时 fail-fast 而非动态删减/重排阶段；stage list fingerprint 不变) (P5/FR-047/011)。
+ - [ ] T081 [P] Terminology enforcement spec: `spec/integration/terminology_enforcement_spec.rb` (legacy alias 仅首次日志；重复无新增；内部使用 canonical 名称) (NFR-007/FR-037)。
 
 Updated Dependencies (Additions / Adjustments)
 T061 → T047
@@ -124,12 +128,16 @@ T074 → T038 (cache implemented)
 T075 → T011 (baseline) & T036
 T076 → T011,T036
 T077 → T017
+T078 → T002
+T079 → T007,T061
+T080 → T008
+T081 → T018
 
 Validation Checklist (Additions / Revised)
 - [ ] SVG tool priority (T061) green before renderer fallback logic changes.
 - [ ] Engine precedence & normalization (T062,T068) covers A5 no-fallback & flag append.
 - [ ] Unicode diversity (T067) covers U4 enumerated set.
-- [ ] Hash collision scenario (T063) defensive behavior defined.
+- [ ] Hash collision scenario (T063) 16→32 字符升级策略落实（无数字后缀）。
 - [ ] Unsupported value actionable errors (T064) align FR-019 contract.
 - [ ] Tool summary log (T072) matches FR-031 format.
 - [ ] Large formula timing (T073) matches FR-032 format & threshold.
@@ -139,6 +147,10 @@ Validation Checklist (Additions / Revised)
 - [ ] Missing tool hint (T071) covers FR-030.
 - [ ] No eviction behavior (T074) covers FR-039.
 - [ ] Output path resolution matrix (T077) covers FR-008 precedence & traversal acceptance.
+ - [ ] Pipeline stage immutability (T079) enforces P5 no dynamic stage change.
+ - [ ] Cache hit zero-spawn (T080) validates P5 / FR-011 / NFR-002。
+ - [ ] Terminology enforcement (T081) single deprecation log (NFR-007/FR-037)。
+ - [ ] Engine selection basic precedence (T078) covers FR-003 existence。
 
 ## Dependencies (Summary)
 T002 → T001
@@ -177,11 +189,15 @@ T058 → T057
 T059 → T051
 T060 → T051,T052,T053,T058
 T077 → T017
+T078 → T002
+T079 → T007,T061
+T080 → T008
+T081 → T018
 
 ## Parallel Execution Examples
 Group A (Contract Specs): T006 T007 T008 T009 T010
 Group B (Acceptance Specs): T011 T012 T013 T014 T015
-Group C (Behavior Pre-impl Specs): T016 T017 T018 T019 T020 T077
+Group C (Behavior Pre-impl Specs): T016 T017 T018 T019 T020 T077 T078 T080
 Group D (Entity Stubs): T021 T022 T023 T024 T025 T026 T027 T028
 Group E (Renderer Stages): T034 T035
 Group F (Perf/Determinism/Stats later): T051 T052 T053
@@ -208,7 +224,9 @@ Group F (Perf/Determinism/Stats later): T051 T052 T053
 - Aruba specs MUST isolate FS; never rely on global HOME (FR-041).
 - Keep contract specs minimal—expand only after base green to avoid over-constraining implementation order.
 - Statistics line is immutable contract; any future field addition requires new FR + version bump.
+ - T077 为后补测试未重排历史编号；新增任务使用顺序递增 (T078+)。
+ - 新增任务：T078 (引擎选择基础), T079 (阶段不变), T080 (缓存命中零进程), T081 (术语弃用一次性日志)。
 
 ---
-*Based on Constitution v3.0.0 – see `.specify/memory/constitution.md`*
+*Based on Constitution v3.1.0 – see `.specify/memory/constitution.md`*
 

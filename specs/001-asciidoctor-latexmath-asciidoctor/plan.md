@@ -40,9 +40,9 @@
 **Testing**: RSpec（单元/契约/集成/性能），Aruba（文件系统隔离），Pending 性能基准脚本。
 **Target Platform**: Linux / macOS（初始），Windows 后续评估。
 **Project Type**: 单库（Ruby gem + Asciidoctor extension）。
-**Performance Goals (Exploratory / Non-Binding v1)**: 当前仅收集基线而不做验收门槛——冷启动简单公式 (≤120 chars) SVG p95 观测目标 ~3000ms，缓存命中平均附加开销目标 <5ms。此处为探索性指标（Exploratory），不作为 v1 成功/失败判据；待 FR-042 生成 `performance-baseline.md` 后，如观察到 SVG 冷 p95 > 3000ms 或 PNG 冷 p95 > 3500ms 将推动新增 MUST（或更新 FR-044 量化公式）。
+**Performance Goals (Exploratory / Non-Binding v1)**: 仅收集基线（非验收门槛）。简单公式定义：Normalization-E 前 UTF-8 字节长度 ≤ 120（与 FR-042 / FR-044 一致）。观测目标（Exploratory）：冷启动简单公式 SVG p95 ≈3000ms；缓存命中平均附加开销 <5ms。若基线（FR-042 输出）显示 SVG 冷 p95 >3000ms 或 PNG 冷 p95 >3500ms 触发后续将该阈值引入为 MUST（更新 FR-044 与 README）。本节所有数据点属“可观察而非当前强制”。
 **Constraints**: 纯离线、无网络依赖；禁止 TreeProcessor & BlockMacro；确定性缓存、可重复构建、超时强制 120s 默认。
-**Scale/Scope**: 支撑 ≥5k 公式线性扩展；无内建上限；内存与状态按表达式流式处理。
+**Scale/Scope**: 支撑 ≥5k 公式近线性扩展；无内建上限；内存与状态按表达式流式处理。时间近线性定义：第二次（无新增表达式）构建外部进程数=0；新增 K 个表达式只新增 K 次外部进程；空间近线性：不常驻全部产物二进制（设计约束，参见 FR-044 说明）。
 **Outstanding Clarifications**: None (全部已解决)。
 
 ## Constitution Check
@@ -58,7 +58,6 @@
 
 Complexity Deviations: None (表格留空)。
 
-ios/ or android/
 ## Project Structure
 
 ### Documentation (feature specs directory)
@@ -209,4 +208,4 @@ tasks.md 已生成并包含 45 个分阶段任务，覆盖：
 - [x] Complexity deviations documented (None)
 
 ---
-*Based on Constitution v3.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v3.1.0 - See `.specify/memory/constitution.md` (v3.1.0: 固定阶段列表澄清)*

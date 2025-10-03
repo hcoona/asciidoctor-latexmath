@@ -108,7 +108,7 @@ When creating this spec from a user prompt:
 - 请求不支持的格式 (如 `format=gif`) → 明确错误并列出受支持集合。
 - 指定工具不存在或无执行权限。
 - `latexmath-preamble` 含非法 LaTeX 指令导致编译失败。
-- 大型公式 (>10KB 源) 或深度递归宏。
+- 大型公式（>3000 字节，统一阈值，参见 FR-032；旧描述 >10KB 已废弃）或深度递归宏。
 - `latexmath-cache=false` 与 元素 `%nocache` 混合使用。
 - 同一文档中混合 `svg` 与 `png` 输出需求。
 - 超时：外部工具长时间挂起。
@@ -125,7 +125,7 @@ When creating this spec from a user prompt:
 - **FR-004**: MUST 在缺少所需工具链时以可操作错误终止，列出缺失命令与建议解决方式（错误消息格式遵循 FR-019 模板）。
  <!-- FR-005 merged into FR-011: moved to Reserved / Merged section; 保留编号避免历史引用失效 -->
 - **FR-006**: MUST 支持块级/内联 `format=`、`ppi=`、`pdflatex=`、`xelatex=`、`lualatex=`、`tectonic=`、`dvisvgm=`、`pdf2svg=`、`png-tool=`、`preamble=`、`cache=`、`cachedir=`、`artifacts-dir=` 覆写；`cache-dir=` 为 Legacy Alias（一次 info 级 deprecation 日志）。缓存目录解析/优先级与回退细节不在本条重复，统一以 **FR-037**（cachedir 解析）为准；README 仅展示规范名称并在 cachedir 行指向 FR-037。
-- **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。缓存判定优先级：`%nocache` > 元素级 `cache=` > 文档级 `:latexmath-cache:`（见 Clarifications）；一旦出现 `%nocache` 则无条件禁用缓存，忽略该元素 `cache=` 值与文档级设置；否则若存在元素级 `cache=` 则按其布尔值决定；否则回退文档级。
+- **FR-007**: MUST 支持元素选项 `%nocache` 与 `keep-artifacts`，准确控制该元素缓存与产物保留。缓存判定优先级：`%nocache` > 元素级 `cache=` > 文档级 `:latexmath-cache:`（见 Clarifications）；一旦出现 `%nocache` 则无条件禁用缓存，忽略该元素 `cache=` 值与文档级设置；否则若存在元素级 `cache=` 则按其布尔值决定；否则回退文档级。产物保留的具体文件集合与目录解析见 FR-021（避免与 FR-021 重复描述）。
 - **FR-008**: MUST 生成的输出文件路径决策顺序与 `asciidoctor-diagram` 对齐：
    1. 若存在文档/元素属性 `imagesoutdir` → 输出目录 = 解析后的 `imagesoutdir`（无需再参考 `outdir` / `to_dir` / `imagesdir`）。
    2. 否则确定根目录 R：优先级 `outdir` 属性 > 文档 options `:to_dir` > 文档 `base_dir`。
@@ -134,7 +134,12 @@ When creating this spec from a user prompt:
    5. 以上决策仅影响物理写入位置；HTML 引用使用 `imagesdir` / 节点级 `imagesdir`（当启用 `autoimagesdir` 时可能被节点覆写）；当启用 `data-uri` 或节点 `inline` 选项时引用改为绝对路径或内联但仍按上述位置生成文件。
    当用户通过块首位置属性显式提供基名且其中包含相对路径段（可含子目录或 `..` 段）时，按 Supplemental Clarifications 决策：不做清洗 / 限制；该相对路径以步骤 (1)/(2)/(3) 得出的“输出目录”作为解析锚点（即：若使用 `imagesoutdir` 则相对 `imagesoutdir`，否则相对 R）；这可能使最终路径越出 `imagesoutdir`（显式覆写例外）；自动生成哈希基名（FR-010）不享受此例外，始终落在步骤 (1)/(2)/(3) 计算出的基础输出目录（不附加额外越界子路径）。
 - **FR-009**: MUST 对块首个位置属性解释为目标基名，第二个位置属性可解释为格式（与 asciidoctor-diagram 中块行为一致）；不适用块宏语法。显式基名允许包含路径分隔符与任意数量 `..` 段（不清洗，不拒绝）；当基名包含扩展：若末尾扩展 ∈ {svg,pdf,png} 且与目标格式匹配 → 保留；若末尾扩展 ∈ {svg,pdf,png} 但与目标格式不匹配 → “替换”该扩展为目标格式（WARN）；若末尾扩展不在集合 → 追加正确扩展（形成双扩展，WARN）。WARN 级别日志应指明原始名称与最终采用名称。冲突检测与缓存键逻辑基于最终文件名与 FR-011 组成。
-- **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。若该 16 字符截断与另一不同内容/配置表达式产生同名冲突，写入阶段采用确定性后缀扩展：追加 `-1`,`-2` … 直到唯一，并记录一次 WARN。该后缀不改变缓存键（缓存键使用完整 SHA256，测试见 T063）。删除概率性“极低概率”措辞，改以确定性规则描述。
+- **FR-010**: MUST 为未指定目标名的表达式生成稳定且基于内容哈希的文件基名：算法 = 取得“正规化内容” (Normalization-E)：仅移除 UTF-8 BOM；其余字节序列（含制表符、CRLF 或混合行结尾、行尾空白、前后导空白）全部保留原样；计算 SHA256，对其十六进制串取前 16 个字符，加前缀 `lm-` 得基名（例：`lm-a1b2c3d4e5f6a7b8`）。文件扩展名由最终格式决定；用户显式提供基名时跳过此规则。冲突处理（替换旧“数字后缀”策略）：
+   1. 若 16 字符截断与另一不同内容/配置表达式冲突 → 升级为前 32 字符截断（`lm-<32hex>`）并记录一次 WARN（含原前缀）。
+   2. 若极低概率 32 字符仍冲突 → 使用完整 64 字符（`lm-<sha256>`）并记录第二条 WARN；再次冲突可视为实现边界，抛出与 FR-040 模板一致的可操作错误（无需再增加长度或数字后缀）。
+   3. 缓存键始终使用完整 SHA256，不受截断/升级影响。
+   4. 不再声明统计概率（移除“极低概率”措辞），完全以确定性升级规则定义行为。
+   对应测试（T063）需模拟 16 字符冲突并断言升级到 32 字符；64 字符路径测试可选（stub）。
 - **FR-011**: MUST 缓存键包含（按稳定顺序）: `ext_version`、`content_hash`（同 FR-010 Normalization-E）、`format`、`preamble_hash`、`ppi`（非 png 时记占位 `-`）、`entry_type`（块/内联）。MUST NOT 包含：编译引擎名称、转换工具名称、任何工具或引擎版本、路径（除自动生成基名外）、日志级别、超时值（仅当其实际导致输出差异时才另行引入新字段）。因此在同一表达式上切换引擎（pdflatex↔xelatex↔lualatex↔tectonic）或 SVG/PNG 转换工具（dvisvgm↔pdf2svg，pdftoppm↔magick↔gs）不会触发缓存失效；用户若需强制重渲染需修改 preamble、格式、PPI 或手动清理缓存。未来若引入“严格模式”将新增字段而不改变上述默认集合；当通过 `:stem: latexmath` 使用 stem 别名时不在缓存键中区分 stem 与 latexmath 名称。任何列入字段值变化（含 preamble、格式、PPI、entry_type 或 ext_version 升级）MUST 触发重新渲染。*本条同时吸收原 FR-005 命中复用语义。*
 <!-- FR-012 merged into FR-011 → moved to Reserved / Merged Requirement Numbers section -->
 - **FR-013**: MUST 在并行运行（多进程）中防止竞争条件：采用内容哈希命名 + 先写入临时文件（同目录 `<name>.tmp-<pid>`）后原子重命名；目标文件已存在即视为成功并跳过；需避免半写文件、脏读；可选基于锁文件 `<hash>.lock`（获取失败时指数退避重试 ≤ 5 次）。
@@ -157,7 +162,7 @@ When creating this spec from a user prompt:
 - **FR-023**: MUST 对单个表达式应用“统一墙钟超时”机制：默认 120s（文档级 `:latexmath-timeout:` 或元素级 `timeout=` 覆写，见 FR-034），预算从首次外部进程启动前开始计时；多个外部步骤（编译、SVG/PNG 转换等）共享同一剩余预算；任一步骤开始前若剩余 ≤0 或执行中耗尽则判定超时。超时时：对当前主子进程发送 SIGTERM，等待 2s，仍存活再 SIGKILL（Windows 使用强制终止）；不终止整组/后代进程；记录包含 `timeout=1`、已耗时、剩余=0 的日志，并依据 FR-045 失败策略生成占位或 fail-fast。建议信息包括：提高 timeout、精简公式、检查工具死锁。该行为不加入缓存键（FR-011）。
 - **FR-024**: MUST 对内联公式输出参考（文件或未来 data URI）；默认文件引用。
 - **FR-025**: MUST 不使用 TreeProcessor 或依赖 Mathematical；若检测到冲突（同时启用 mathematical）提示优先级与迁移。
-- **FR-026**: MUST 遵循宪章 TDD：拒绝在无对应失败测试前合入新行为（通过 CI Gate 控制）。
+- **FR-026**: MUST 遵循宪章 TDD：拒绝在无对应失败测试前合入新行为（通过 CI Gate 控制）。该要求通过提交流程 / CI 审核保障，不强制提供单独“门控”测试（属流程约束，非代码逻辑）。
 - **FR-027**: MUST 文档化所有支持属性（README/Attributes 表格同步）。
 - **FR-028**: MUST 允许在同一文档中混用不同输出格式；彼此缓存隔离。
 - **FR-029**: MUST 正确处理含 Unicode 字符：
@@ -169,7 +174,7 @@ When creating this spec from a user prompt:
 - **FR-030**: SHOULD 在工具缺失时输出“可操作替代”提示（错误消息格式遵循 FR-019 模板）。标准消息模板：`hint: install <tool>|choose <alternative_format>|set <attribute>=<supported_value>`；当缺少 `dvisvgm` 且存在 `pdf2svg` 时模板示例：`hint: install dvisvgm (preferred) or keep using pdf2svg; or set :latexmath-format: pdf|png`。消息放入同一异常文本（FR-004 / FR-019 区别：缺失工具 vs 不支持值），位于主错误行之后换行位置，前缀固定 `hint:` 便于测试断言；多个 hint 以分号分隔。
 - **FR-031**: SHOULD 在首次遇到 latexmath 节点（或注册后第一次渲染前惰性触发）输出一次工具可用性摘要（info 级）。格式：`latexmath.tools: dvisvgm=<ok|missing> pdf2svg=<ok|missing> pdflatex=<ok|missing> xelatex=<ok|missing> lualatex=<ok|missing> tectonic=<ok|missing> pdftoppm=<ok|missing> magick=<ok|missing> gs=<ok|missing>`。*不输出版本号*；缺失值为 `missing`；永不重复输出（多文档场景按进程一次）。若全部缺失与当前格式直接相关的转换工具将仍由 FR-004 抛出主错误；本摘要行主要服务诊断与测试。禁止新增字段顺序漂移（严格左到右固定顺序）。
 - **FR-032**: SHOULD 为重复出现的“大型公式”记录单独耗时日志（debug 级）。*大型公式阈值*：原始（Normalization-E 之前）UTF-8 字节长度 > 3000 字节即判定（多字节字符按实际字节计）；日志格式：`latexmath.timing: key=<first8(content_hash)> bytes=<len> ms=<elapsed_ms>`；仅在该公式首次渲染与后续每次缓存命中时各记录一次（命中耗时表示从缓存读取到完成引用注入的总耗时）。禁止将 timing 行纳入统计聚合行 (FR-022)。
-- **FR-033**: SHOULD（未来扩展）支持独立于全局 `:data-uri:` 的细粒度内联策略；v1 不提供专有 data URI 开关，仅继承 Asciidoctor 核心 `:data-uri:` 行为并通过绝对路径辅助核心内联。
+- **FR-033**: SHOULD（未来扩展 / Deferred）支持独立于全局 `:data-uri:` 的细粒度内联策略；v1 不提供专有 data URI 开关，仅继承 Asciidoctor 核心 `:data-uri:` 行为并通过绝对路径辅助核心内联；本版本无实现与任务（显式 Defer）。
 - **FR-034**: SHOULD 允许用户自定义渲染超时：文档级属性 `:latexmath-timeout:` （正整数秒，默认 120），元素级属性 `timeout=` 可覆写当前表达式；非法或非正整数值应报错并回退默认。
 - **FR-036**: MUST 采用“受控仓库作者完全可信”信任模型：假设公式与 preamble 来自可信源；实现禁用 shell-escape（见 FR-017）但不增加额外沙箱/文件系统隔离；多租/不可信输入强化措施（隔离目录、内存/CPU 限额）列为未来范围外。
 - **FR-037**: MUST 缓存目录解析顺序：
@@ -178,11 +183,11 @@ When creating this spec from a user prompt:
     3) 若定义了 `:imagesdir:` 且非空，则 `<outdir>/<imagesdir>`
     4) 否则 `<outdir>/.asciidoctor/latexmath`（内置默认）
  其中 `outdir` 由 Asciidoctor 决议（命令行 `-D` / 文档属性 / 执行工作目录）。若目录不存在需在首次渲染前创建。接受 Legacy Alias `cache-dir=` / `:latexmath-cache-dir:` 并输出一次 info 级 deprecation 日志。所有内部、日志、错误输出使用规范名称 `cachedir`。允许 imagesdir 回退以贴近 asciidoctor-diagram 行为；未来如需移除该回退将新增 FR 公告（语义变更）。
-- **FR-038**: MUST 不内建并行渲染调度（单进程串行队列）；跨进程并发仅依赖 FR-013 原子写保障；预留文档属性 `:latexmath-jobs:`（保留字，当前解析后记录 Warning 并忽略）以便未来扩展为可配置并行度（默认 cores）。Test Coverage 注：并行调度缺失与串行特性视为 Implementation-Defined（U5），无需专门动态测试；通过代码审查与性能基线确认无多线程启动。
+- **FR-038**: MUST 不内建并行渲染调度（单进程串行队列）；跨进程并发仅依赖 FR-013 原子写保障；预留文档属性 `:latexmath-jobs:`（保留字，当前解析后记录 Warning 并忽略）以便未来扩展为可配置并行度（默认 cores）。Test Coverage 注：串行特性不做专门线程枚举测试；通过代码审查 + 性能基线（FR-042/044）间接验证；禁止基于工具可用性动态插入/删减阶段（与 P5 一致，另见即将新增阶段不变测试任务）。
 - **FR-039**: MUST 不实施任何自动缓存逐出/清理：不基于大小、文件数或 TTL 扫描删除；插件不对缓存目录做周期遍历。用户如需清理，需手动删除目录（安全：再生成时按键重建）。未来策略（大小 / TTL / LRU）将通过新属性显式启用，保持默认行为不变。Test Coverage 注：无需专门验证清理器缺失（Implementation-Defined, U5）。
 - **FR-040**: MUST 当两个以上表达式（内容或配置不同 → 缓存键不同）显式请求相同目标基名 + 相同格式时：在首次检测到第二个冲突时抛出可操作错误（错误消息格式遵循 FR-019 模板），列出：目标名、原始定义（行/块标识）、新定义摘要（前 80 字符哈希前缀）、建议（移除显式目标名或改名）。若缓存键相同（完全同一内容与配置）则视为幂等：不重写文件亦不警告。检测需在写入前完成（结合 FR-013 原子策略）。
  - **FR-041**: MUST 集成与端到端命令行测试使用 Aruba（或功能等价沙箱）确保：每测试示例独立临时工作目录、环境变量清理、无跨示例残留文件；测试可通过 helper 提供对渲染产物与日志的断言；不得依赖真实用户 HOME / 全局缓存副作用。
- - **FR-042**: SHOULD 在首次实现后生成一份性能基准（≥30 个简单公式批量：SVG 冷/热 + PNG）并记录：冷启动 p50/p95、缓存命中追加开销、平均渲染耗时；若 SVG 冷 p95 > 3000ms 或 PNG 冷 p95 > 3500ms 则需在后续迭代将明确量化阈值添加为 MUST（更新本 spec 与 README）。当前版本不锁定硬阈值（见 Clarifications）。
+- **FR-042**: SHOULD 在首次实现后生成一份性能基准（≥30 个简单公式批量：SVG 冷/热 + PNG）并记录：冷启动 p50/p95、缓存命中追加开销、平均渲染耗时；“简单公式”定义：Normalization-E 前 UTF-8 原始字节长度 ≤ 120；若 SVG 冷 p95 > 3000ms 或 PNG 冷 p95 > 3500ms 则需在后续迭代将明确量化阈值添加为 MUST（更新本 spec 与 README）。当前版本不锁定硬阈值；升级触发条件与 near-linear 说明见 FR-044（互相引用）。
 - **FR-043**: MUST 生成 HTML 时，对由扩展替换的数学公式引用（`<img>` 或等效占位）添加可访问性元数据：`alt` 属性内容 = 原始 LaTeX 源（逐字保留，不截断，不做命令剥离）；附加 `role="math"` 与 `data-latex-original`（同 alt 内容）属性；若用户已手动提供 `alt` 元素属性（块/内联属性）则优先用户值且仍附加 `role` 与 `data-latex-original`（不覆盖用户 alt）。该行为适用于三种输出格式 (svg/pdf/png)；与缓存 / 基名 / 哈希策略无副作用；测试应验证：存在 alt、role、data-latex-original 且三者一致（当未用户覆写）。
 - **FR-044**: 性能 & 复杂度（精炼）
    MUST:
@@ -194,6 +199,10 @@ When creating this spec from a user prompt:
    SHOULD:
    6. 生成 `performance-baseline.json`（冷/热各≥1 条记录）供基线追踪；新增字段需新 FR。
    NON-NORMATIVE: 性能抖动与观测阈值转移至后续基线文档（T059）。
+   说明：
+   - 时间近线性：第二次（无新增表达式）构建外部进程数=0；新增 K 表达式仅新增 K 次进程。
+   - 空间近线性：不把全部已渲染产物二进制常驻内存，只保留当前上下文；不对该点写专门测试，属设计约束。
+   - 阈值升级与基线文件生成流程：见 FR-042（互相引用）。
 - **FR-045**: MUST 提供失败策略属性：文档级 `:latexmath-on-error:`，元素级 `on-error=`；允许值 `log` 与 `abort`；默认 `log`。`abort` → 在首次失败立即终止转换并返回错误；`log` → 记录错误（与 FR-014 输出一致）并在输出中插入结构化占位（见 FR-046），继续处理剩余表达式，最终构建成功且统计中不计入成功渲染次数（renders 不含失败项）。非法值时报错并回退默认 `log`。缓存不记录失败产物。
  - **FR-046**: MUST 当失败策略=log 且单表达式渲染失败时插入 `<pre class="highlight latexmath-error" role="note" data-latex-error="1">` 占位，内部文本段落按顺序包含：
     1. `Error:` + 简短错误描述（单行）
@@ -211,7 +220,7 @@ When creating this spec from a user prompt:
    4. 选择或失败均不影响缓存键（与 FR-011 一致）。
    5. 未来若需用户显式覆写将新增属性（`svg-tool=`）引入：默认值 `auto` 保持当前优先顺序；该未来变更不会改变现有默认语义。
    6. Debug 级别可额外记录探测矩阵（可用工具列表），但非 MUST；测试只断言 info 主行与错误行稳定格式。
- - **FR-048**: MUST 将 `tectonic` 视为普通可选编译引擎之一，不引入专有网络策略：扩展不阻断其在线按需包获取，也不强制离线；未缓存包导致的首次网络下载行为不写入或修改缓存键（缓存键不包含工具/引擎名称或版本，见 FR-011）；若在严格离线 / 断网环境构建失败应提示用户改用其它引擎或预先本地预热 tectonic 缓存；网络失败（超时、无法解析域名等）按引擎失败处理（FR-014/FR-045）；未来如需对 tectonic 网络进行策略化（例如强制离线模式）将新增独立属性而不破坏默认兼容；切换至/离开 tectonic 不会使既有缓存失效（风险已在 Clarifications 阐述）。
+- **FR-048**: MUST 将 `tectonic` 视为普通可选编译引擎之一，不引入专有网络策略：扩展不阻断其在线按需包获取，也不强制离线；未缓存包导致的首次网络下载行为不写入或修改缓存键（缓存键不包含工具/引擎名称或版本，见 FR-011）；若在严格离线 / 断网环境构建失败应提示用户改用其它引擎或预先本地预热 tectonic 缓存；网络失败（超时、无法解析域名等）按引擎失败处理（FR-014/FR-045）。实现不探测“是否使用网络”或包下载事件——仅依据进程退出码；未来如需策略化（强制离线等）将新增独立属性；切换至/离开 tectonic 不会使既有缓存失效（Clarifications 已阐述风险）。
  - **FR-049**: MUST 解析 `pdflatex` 基线命令时采用层级优先级：元素级 `pdflatex=` > 文档级 `:latexmath-pdflatex:` > 全局 `:pdflatex:` > 默认 `pdflatex -interaction=nonstopmode -file-line-error`；解析出首个可用命令串后执行规范化：
     1. 若不含子串 `-interaction=`（任意形式，如 `-interaction=batchmode` 亦视为已含）则追加 `-interaction=nonstopmode`；
     2. 再检查是否含 `-file-line-error`；若缺失追加 `-file-line-error`；
@@ -228,13 +237,13 @@ When creating this spec from a user prompt:
 已退役：独立字段被移除；阶段集合/顺序变化通过扩展版本号（P5, FR-011）体现。任何 legacy 引用 = “缓存键字段集 + 版本号”。T023 仅占位，无实现。
 
 ### Non-Functional Requirements (NFR)
-NFR-001 性能：满足 FR-044 MUST 条款；≥5k 表达式命中路径仍 0 外部进程。
+NFR-001 性能：满足 FR-044 MUST 条款；≥5k 表达式命中路径仍 0 外部进程。时间近线性观测：首次构建外部进程数=M（未命中数），第二次(无改动)为0，新增 K 表达式后第三次增量=K；空间近线性=不常驻全部产物于内存（设计约束，不单测）。
 NFR-002 确定性：同一 (content + 规范化属性 + format + preamble + ppi + entry_type + ext_version) 条件二次构建不触发外部进程（P5）。
 NFR-003 可访问性：`alt` / `role="math"` / `data-latex-original` 三要素齐备（FR-043）。
 NFR-004 安全（信任模型）：禁用 shell-escape（FR-017, FR-036）；显式基名越界允许仅在可信仓库模式下使用。
 NFR-005 可观测性：统计行（FR-022）、工具摘要（FR-031）、大型公式 timing（FR-032）。
 NFR-006 可维护性：仅 BlockProcessor + InlineMacroProcessor（P1）。
-NFR-007 术语一致性：`cachedir` 为规范；`cache-dir` / `latexmath-cache-dir` 为兼容别名（弃用，日志一次性提示）。
+NFR-007 术语一致性：`cachedir` 为规范；`cache-dir` / `latexmath-cache-dir` 为兼容别名（弃用，日志一次性提示；单进程最多一次 deprecation 日志——Terminology enforcement 测试覆盖）。
 
 ### Terminology Note
 Canonical 名称：`cachedir` / `:latexmath-cachedir:`；兼容别名：`cache-dir` / `:latexmath-cache-dir:`（弃用）。
@@ -310,4 +319,4 @@ SECURITY NOTE: 处理不可信（用户上传 / 外部来源）文档时应禁�
 
 ---
 
-*Based on Constitution v3.0.0 - See `.specify/memory/constitution.md`*
+*Based on Constitution v3.1.0 - See `.specify/memory/constitution.md` (v3.1.0: 固定阶段列表澄清 / pipeline_signature 历史说明)*
