@@ -8,6 +8,7 @@ require "fileutils"
 require "tmpdir"
 require "pathname"
 require "digest"
+require "time"
 
 require_relative "attribute_resolver"
 require_relative "math_expression"
@@ -54,17 +55,20 @@ module Asciidoctor
       end
 
       def render_block(parent, reader, attrs)
+        cursor = reader.cursor if reader.respond_to?(:cursor)
         content = reader.lines.join("\n")
-        render_block_content(parent, content, attrs)
+        render_block_content(parent, content, attrs, cursor: cursor)
       end
 
-      def render_block_content(parent, content, attrs)
+      def render_block_content(parent, content, attrs, cursor: nil)
         target_basename = extract_target(attrs, style: attrs["style"] || attrs[1] || attrs["1"])
+        location = derive_block_location(parent, cursor)
         expression = MathExpression.new(
           content: content,
           entry_type: :block,
           target_basename: target_basename,
-          attributes: attrs
+          attributes: attrs,
+          location: location
         )
 
         render_common(parent, expression, attrs)
@@ -76,11 +80,13 @@ module Asciidoctor
 
       def render_inline_content(parent, content, attrs)
         target_basename = extract_target(attrs)
+        location = derive_inline_location(parent)
         expression = MathExpression.new(
           content: content,
           entry_type: :inline,
           target_basename: target_basename,
-          attributes: attrs
+          attributes: attrs,
+          location: location
         )
 
         render_common(parent, expression, attrs)
@@ -102,24 +108,32 @@ module Asciidoctor
         paths = determine_target_paths(document_obj, resolved, request)
         ensure_directory(File.dirname(paths.final_path))
 
+        cache_key = build_cache_key(request, expression)
+
         if resolved.target_basename
           registry = conflict_registry_for(document_obj)
-          registry.register!(paths.public_target, request.content_hash, expression.location || document_obj.attr("docfile"))
+          registry.register!(
+            paths.public_target,
+            cache_key.digest,
+            conflict_details(document_obj, expression, request)
+          )
         end
 
         final_path = if resolved.nocache
           render_without_cache(document_obj, request, paths, resolved.raw_attributes)
         else
-          render_with_cache(document_obj, request, expression, paths, resolved)
+          render_with_cache(document_obj, request, expression, paths, resolved, cache_key)
         end
 
         build_success_result(expression, request, paths.public_target, final_path)
       rescue TargetConflictError => error
         raise error
       rescue MissingToolError => error
-        handle_render_failure(error, resolved, expression, request)
+        raise error
       rescue StageFailureError => error
         handle_render_failure(error, resolved, expression, request)
+      rescue InvalidAttributeError => error
+        raise error
       rescue LatexmathError => error
         handle_render_failure(error, resolved, expression, request)
       end
@@ -218,29 +232,20 @@ module Asciidoctor
         paths.final_path
       end
 
-      def render_with_cache(document_obj, request, expression, paths, resolved)
-        key = Cache::CacheKey.new(
-          ext_version: VERSION,
-          content_hash: request.content_hash,
-          format: request.format,
-          preamble_hash: request.preamble_hash,
-          ppi: request.ppi || "-",
-          entry_type: expression.entry_type
-        )
-
+      def render_with_cache(document_obj, request, expression, paths, resolved, cache_key)
         disk_cache = Cache::DiskCache.new(request.cachedir)
         artifact_path = nil
         cache_hit = false
         hit_start = nil
 
-        disk_cache.with_lock(key.digest) do
-          cache_entry = disk_cache.fetch(key.digest)
+        disk_cache.with_lock(cache_key.digest) do
+          cache_entry = disk_cache.fetch(cache_key.digest)
           if cache_entry
             cache_hit = true
             hit_start = monotonic_time
             artifact_path = cache_entry.final_path
           else
-            artifact_path = render_and_store(document_obj, request, paths.basename, key, disk_cache, resolved.raw_attributes, expression)
+            artifact_path = render_and_store(document_obj, request, paths.basename, cache_key, disk_cache, resolved.raw_attributes, expression)
           end
         end
 
@@ -254,7 +259,7 @@ module Asciidoctor
         paths.final_path
       end
 
-      def render_and_store(document_obj, request, basename, key, disk_cache, raw_attrs, expression)
+      def render_and_store(document_obj, request, basename, cache_key, disk_cache, raw_attrs, expression)
         start = monotonic_time
         stored_path = nil
 
@@ -263,7 +268,7 @@ module Asciidoctor
           size_bytes = File.size(output_path)
 
           cache_entry = Cache::CacheEntry.new(
-            final_path: File.join(request.cachedir, key.digest, Cache::DiskCache::ARTIFACT_FILENAME),
+            final_path: File.join(request.cachedir, cache_key.digest, Cache::DiskCache::ARTIFACT_FILENAME),
             format: request.format,
             content_hash: request.content_hash,
             preamble_hash: request.preamble_hash,
@@ -271,11 +276,11 @@ module Asciidoctor
             ppi: request.ppi,
             entry_type: expression.entry_type,
             created_at: Time.now,
-            checksum: checksum,
+            checksum: "sha256:#{checksum}",
             size_bytes: size_bytes
           )
 
-          disk_cache.store(key.digest, cache_entry, output_path)
+          disk_cache.store(cache_key.digest, cache_entry, output_path)
           stored_path = cache_entry.final_path
           persist_artifacts(request, artifact_dir, success: true)
         end
@@ -288,22 +293,34 @@ module Asciidoctor
       def generate_artifact(request, basename, raw_attrs)
         tmp_dir = Dir.mktmpdir("latexmath")
         artifact_dir = Dir.mktmpdir("latexmath-artifacts")
+        tex_artifact_path = write_tex_artifact(artifact_dir, basename, request)
+        log_artifact_path = write_log_artifact(artifact_dir, basename, "latexmath render start", request)
+
         context = {
           tmp_dir: tmp_dir,
           artifact_dir: artifact_dir,
           artifact_basename: basename,
-          tool_detector: Rendering::ToolDetector.new(request, raw_attrs)
+          tool_detector: Rendering::ToolDetector.new(request, raw_attrs),
+          tex_artifact_path: tex_artifact_path,
+          log_artifact_path: log_artifact_path
         }
 
         if request.expression.content.include?("\\error")
+          persist_artifacts(request, artifact_dir, success: false)
           raise StageFailureError, "forced failure"
         end
 
         output_path = build_pipeline.execute(request, context)
         yield output_path, artifact_dir
+      rescue RenderTimeoutError => error
+        write_log_artifact(artifact_dir, basename, "latexmath render failed: #{error.message}", request)
+        persist_artifacts(request, artifact_dir, success: false)
+        raise
       rescue MissingToolError
         raise
       rescue => error
+        write_log_artifact(artifact_dir, basename, "latexmath render failed: #{error.message}", request)
+        persist_artifacts(request, artifact_dir, success: false)
         raise StageFailureError, error.message
       ensure
         FileUtils.remove_entry_secure(tmp_dir) if defined?(tmp_dir) && Dir.exist?(tmp_dir)
@@ -325,6 +342,33 @@ module Asciidoctor
             FileUtils.cp_r(source, destination)
           end
         end
+      end
+
+      def write_tex_artifact(artifact_dir, basename, request)
+        path = File.join(artifact_dir, "#{basename}.tex")
+        File.write(path, build_latex_document(request))
+        path
+      end
+
+      def write_log_artifact(artifact_dir, basename, message, request)
+        path = File.join(artifact_dir, "#{basename}.log")
+        timestamp = Time.now.utc.iso8601
+        File.open(path, "a") do |file|
+          file.puts("[#{timestamp}] #{message}")
+          file.puts("content-hash=#{request.content_hash} format=#{request.format}") if message.include?("start")
+        end
+        path
+      end
+
+      def build_latex_document(request)
+        body = request.expression.content.to_s.strip
+        <<~LATEX
+          \\documentclass{article}
+          #{request.preamble}
+          \\begin{document}
+          #{body}
+          \\end{document}
+        LATEX
       end
 
       def build_pipeline
@@ -353,7 +397,7 @@ module Asciidoctor
       end
 
       def handle_render_failure(error, resolved, expression, request)
-        policy = resolved&.on_error_policy || ErrorHandling.policy(:abort)
+        policy = resolved&.on_error_policy || ErrorHandling.policy(:log)
         raise error if policy.abort?
 
         logger&.error { "latexmath rendering failed: #{error.message}" }
@@ -401,6 +445,27 @@ module Asciidoctor
         Pathname(relative_name).absolute? ? relative_name : File.join(imagesdir, relative_name)
       end
 
+      def build_cache_key(request, expression)
+        Cache::CacheKey.new(
+          ext_version: VERSION,
+          content_hash: request.content_hash,
+          format: request.format,
+          preamble_hash: request.preamble_hash,
+          ppi: request.ppi || "-",
+          entry_type: expression.entry_type
+        )
+      end
+
+      def conflict_details(document_obj, expression, request)
+        {
+          location: expression.location || default_document_location(document_obj),
+          format: request.format,
+          content_hash: request.content_hash,
+          preamble_hash: request.preamble_hash,
+          entry_type: expression.entry_type
+        }
+      end
+
       def expand_path(path, document_obj)
         base_dir = document_obj.attr("outdir") || document_obj.options[:to_dir] || document_obj.base_dir || Dir.pwd
         Pathname(path).absolute? ? path : File.expand_path(path, base_dir)
@@ -431,6 +496,17 @@ module Asciidoctor
         FileUtils.mkdir_p(dir)
       end
 
+      def derive_block_location(parent, cursor)
+        format_cursor(cursor) ||
+          (parent.respond_to?(:source_location) && format_source_location(parent.source_location)) ||
+          default_document_location(parent.document)
+      end
+
+      def derive_inline_location(parent)
+        (parent.respond_to?(:source_location) && format_source_location(parent.source_location)) ||
+          default_document_location(parent.document)
+      end
+
       def record_render_duration(document_obj, start_time)
         duration = ((monotonic_time - start_time) * 1000).round
         stats_collector(document_obj).record_render(duration)
@@ -450,6 +526,45 @@ module Asciidoctor
 
       def monotonic_time
         Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      end
+
+      def flush_statistics
+        return nil unless document
+        return nil unless document.instance_variable_defined?(:@latexmath_stats)
+
+        collector = document.instance_variable_get(:@latexmath_stats)
+        line = collector&.to_line
+        logger&.info { line } if line
+        document.remove_instance_variable(:@latexmath_stats)
+        line
+      end
+
+      def format_cursor(cursor)
+        return nil unless cursor
+
+        path = cursor.respond_to?(:path) ? cursor.path : nil
+        path ||= cursor.respond_to?(:file) ? cursor.file : nil
+        path ||= cursor.respond_to?(:dir) ? cursor.dir : nil
+        line = cursor.respond_to?(:lineno) ? cursor.lineno : nil
+        return nil unless path
+
+        line ? "#{path}:#{line}" : path
+      end
+
+      def format_source_location(source_location)
+        return nil unless source_location
+
+        path = source_location.file || source_location.path
+        line = source_location.lineno if source_location.respond_to?(:lineno)
+        if path
+          line ? "#{path}:#{line}" : path
+        elsif line
+          line.to_s
+        end
+      end
+
+      def default_document_location(document_obj)
+        document_obj&.attr("docfile") || document_obj&.attr("docname") || "(document)"
       end
     end
   end

@@ -54,26 +54,26 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [X] T028 [P] ConflictRegistry: `lib/asciidoctor/latexmath/support/conflict_registry.rb` (register! skeleton).
 
 ## Phase 3.4: Core Services & Pipeline
- - [X] T029 Attribute resolver: `lib/asciidoctor/latexmath/attribute_resolver.rb` (precedence chain, alias normalization, ppi/timeout validation stubs) depends: T021,T022.
- - [X] T030 Tool presence detector: `lib/asciidoctor/latexmath/rendering/tool_detector.rb` (one-time presence detection, 不采集版本号) depends: T026.
- - [X] T031 Cache key implementation: `lib/asciidoctor/latexmath/cache/cache_key.rb` (ordered fields, digest) depends: T023,T024,T025.
- - [X] T032 Pipeline orchestrator: `lib/asciidoctor/latexmath/rendering/pipeline.rb` (sequential execution, timing hooks) depends: T027,T023.
- - [X] T033 Pdflatex renderer stage: `lib/asciidoctor/latexmath/rendering/pdflatex_renderer.rb` depends: T032,T030.
- - [X] T034 [P] Pdf→SVG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_svg_renderer.rb` depends: T033.
- - [X] T035 [P] Pdf→PNG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_png_renderer.rb` depends: T033.
- - [X] T036 Processors (block + inline): `lib/asciidoctor/latexmath/processors/{block_processor,inline_macro_processor}.rb` depends: T029,T030,T031,T032,T033–T035,T028.
- - [X] T037 Extension wiring entrypoint: `lib/asciidoctor-latexmath.rb` (register only processors) depends: T036.
+- [X] T029 Attribute resolver: `lib/asciidoctor/latexmath/attribute_resolver.rb` (precedence chain, alias normalization, ppi/timeout validation stubs) depends: T021,T022.
+- [X] T030 Tool presence detector: `lib/asciidoctor/latexmath/rendering/tool_detector.rb` (one-time presence detection, 不采集版本号) depends: T026.
+- [X] T031 Cache key implementation: `lib/asciidoctor/latexmath/cache/cache_key.rb` (ordered fields, digest) depends: T023,T024,T025.
+- [X] T032 Pipeline orchestrator: `lib/asciidoctor/latexmath/rendering/pipeline.rb` (sequential execution, timing hooks) depends: T027,T023.
+- [X] T033 Pdflatex renderer stage: `lib/asciidoctor/latexmath/rendering/pdflatex_renderer.rb` depends: T032,T030.
+- [X] T034 [P] Pdf→SVG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_svg_renderer.rb` depends: T033.
+- [X] T035 [P] Pdf→PNG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_png_renderer.rb` depends: T033.
+- [X] T036 Processors (block + inline): `lib/asciidoctor/latexmath/processors/{block_processor,inline_macro_processor}.rb` depends: T029,T030,T031,T032,T033–T035,T028.
+- [X] T037 Extension wiring entrypoint: `lib/asciidoctor-latexmath.rb` (register only processors) depends: T036.
 
 ## Phase 3.5: Behavior Implementation & Edge Cases
-- [ ] T038 Cache store + hit logic: integrate DiskCache + CacheKey (FR-011) depends: T031,T025,T037.
-- [ ] T039 Atomic write & concurrency lock: temp + rename + optional lock file (FR-013) depends: T038.
-- [ ] T040 Conflict detection raising TargetConflictError (FR-040) depends: T028,T036,T038.
-- [ ] T041 Nocache & keep-artifacts flows (FR-007/015/021) depends: T036,T038.
-- [ ] T042 Timeout enforcement + process kill (FR-023/034) depends: T033–T035.
-- [ ] T043 Security restrictions (no shell-escape, sanitized args) (FR-017/036) depends: T033–T035.
-- [ ] T044 Attribute precedence & alias normalization full logic (makes T017/T018 green) depends: T029,T036.
-- [ ] T045 Error placeholder + on-error policy (FR-014/045/046) depends: T036,T041,T042.
-- [ ] T046 Statistics collection & emission (FR-022/035) depends: T038,T042.
+- [X] T038 Cache store + hit logic: integrate DiskCache + CacheKey (FR-011) depends: T031,T025,T037.
+- [X] T039 Atomic write & concurrency lock: temp + rename + optional lock file (FR-013) depends: T038.
+- [X] T040 Conflict detection raising TargetConflictError (FR-040) depends: T028,T036,T038.
+- [X] T041 Nocache & keep-artifacts flows (FR-007/015/021) depends: T036,T038.
+- [X] T042 Timeout enforcement + process kill (FR-023/034) depends: T033–T035.
+- [X] T043 Security restrictions (no shell-escape, sanitized args) (FR-017/036) depends: T033–T035.
+- [X] T044 Attribute precedence & alias normalization full logic (makes T017/T018 green) depends: T029,T036.
+- [X] T045 Error placeholder + on-error policy (FR-014/045/046) depends: T036,T041,T042.
+- [X] T046 Statistics collection & emission (FR-022/035) depends: T038,T042.
 - [ ] T047 Accessibility markup injection (FR-043) depends: T036.
 - [ ] T048 PPI validation & range errors (FR-018) depends: T029,T036.
 - [ ] T049 Stem alias handling (FR-001/011) depends: T036.
@@ -94,7 +94,7 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 ## Phase 3.7: Additional Coverage (Remediation A3–A5, U4, C1–C5, C7–C9)
 - [ ] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
 - [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5)。
- - [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (simulate 16-char prefix collision → 升级为 32-char 基名无数字后缀；缓存键仍用全 64；可选 stub 二次冲突) (FR-010/011 新策略)。
+- [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (simulate 16-char prefix collision → 升级为 32-char 基名无数字后缀；缓存键仍用全 64；可选 stub 二次冲突) (FR-010/011 新策略)。
 - [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019)。
 - [ ] T065 (Removed) 路径遍历防御测试取消：信任模型允许 `..`，参见 spec A4/I1 说明。
 - [ ] T066 Mixed formats same doc spec: `spec/integration/mixed_formats_spec.rb` (svg + png + pdf concurrently; independent cache entries; no cross pollution) (FR-028/021/011)。

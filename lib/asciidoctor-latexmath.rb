@@ -9,6 +9,7 @@ require "asciidoctor/extensions"
 require_relative "asciidoctor/latexmath/version"
 require_relative "asciidoctor/latexmath/processors/block_processor"
 require_relative "asciidoctor/latexmath/processors/inline_macro_processor"
+require_relative "asciidoctor/latexmath/processors/statistics_postprocessor"
 require_relative "asciidoctor/latexmath/converters/html5"
 
 module Asciidoctor
@@ -19,6 +20,7 @@ module Asciidoctor
         inline_extension = registry.inline_macro Processors::InlineMacroProcessor
         ensure_processor_collection!(registry, :@block_processors, :latexmath, block_extension)
         ensure_processor_collection!(registry, :@inline_macros, :latexmath, inline_extension)
+        registry.postprocessor Processors::StatisticsPostprocessor
 
         ensure_aliases!(registry)
         ensure_empty_collection!(registry, :@block_macros, {})

@@ -23,6 +23,25 @@ RSpec.describe "Error placeholder" do
     end
   end
 
+  it "defaults to log policy when on-error is not provided" do
+    within_tmpdir do |dir|
+      Dir.chdir(dir) do
+        source = <<~'ADOC'
+          [latexmath]
+          ++++
+          \error{forced}
+          ++++
+        ADOC
+
+        RSpec.configuration.reporter.message("NOTE: Seeing 'latexmath rendering failed: forced failure' in the log is expected for this scenario.")
+        html = convert_with_extension(source, attributes: {"imagesdir" => "images"})
+
+        expect(html).to include('class="highlight latexmath-error"')
+        expect(html).to include("Command:")
+      end
+    end
+  end
+
   it "raises when on-error is abort" do
     within_tmpdir do |dir|
       Dir.chdir(dir) do

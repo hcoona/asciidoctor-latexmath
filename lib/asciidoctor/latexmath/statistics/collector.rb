@@ -39,7 +39,7 @@ module Asciidoctor
           return 0 if values.empty?
 
           sum = values.sum
-          (sum.to_f / values.size).floor
+          (sum.to_f / values.size).round(0, half: :up)
         end
       end
     end

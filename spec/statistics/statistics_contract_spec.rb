@@ -22,6 +22,6 @@ RSpec.describe Asciidoctor::Latexmath::Statistics::Collector do
     collector.record_render(101)
     collector.record_render(102)
 
-    expect(collector.to_line).to include("avg_render_ms=101")
+    expect(collector.to_line).to include("avg_render_ms=102")
   end
 end

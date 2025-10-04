@@ -20,7 +20,10 @@ RSpec.describe "Conflict detection" do
 
         expect {
           convert_with_extension(source, attributes: {"imagesdir" => "images"})
-        }.to raise_error(Asciidoctor::Latexmath::TargetConflictError)
+        }.to raise_error(Asciidoctor::Latexmath::TargetConflictError) { |error|
+          expect(error.message).to include("conflicting target 'images/foo.svg'")
+          expect(error.message).to include("hint:")
+        }
       end
     end
   end

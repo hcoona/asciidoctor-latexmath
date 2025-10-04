@@ -230,8 +230,11 @@ module Asciidoctor
       end
 
       def infer_on_error(attrs)
-        policy_name = attrs["on-error"] || document.attr("latexmath-on-error") || :abort
+        policy_name = attrs["on-error"] || document.attr("latexmath-on-error") || :log
         ErrorHandling.policy(policy_name.to_sym)
+      rescue ArgumentError
+        logger&.warn { "latexmath: unknown on-error policy '#{policy_name}', falling back to log" }
+        ErrorHandling.policy(:log)
       end
 
       def expand_path(path)
