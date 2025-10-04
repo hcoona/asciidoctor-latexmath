@@ -1,6 +1,5 @@
 = Precompiled Math
 :math:
-:imagesoutdir: generated_images
 :imagesdir: images
 :stem: latexmath
 
