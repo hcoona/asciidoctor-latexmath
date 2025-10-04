@@ -14,55 +14,55 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - Research decisions → setup, security, timeout, concurrency, statistics, attribute parity tasks
 
 ## Phase 3.1: Setup
-- [ ] T001 Create gem skeleton & version file: `lib/asciidoctor-latexmath.rb`, `lib/asciidoctor/latexmath/version.rb` (ensure NO BlockMacro registration per P1).
-- [ ] T002 Add RSpec + Aruba setup: `spec/spec_helper.rb`, enable `aruba/rspec`, temp dir helpers (FR-041).
-- [ ] T003 [P] Add StandardRB config `.standard.yml` + Rake task `lint` + `bundle exec standardrb` CI target (P4).
-- [ ] T004 [P] Add GitHub Actions CI workflow `.github/workflows/ci.yml` (matrix: 3.1,3.2,3.3; steps: install, lint, spec) (P4).
-- [ ] T005 [P] Initialize `.rspec` with color + `--require spec_helper`.
+- [X] T001 Create gem skeleton & version file: `lib/asciidoctor-latexmath.rb`, `lib/asciidoctor/latexmath/version.rb` (ensure NO BlockMacro registration per P1).
+- [X] T002 Add RSpec + Aruba setup: `spec/spec_helper.rb`, enable `aruba/rspec`, temp dir helpers (FR-041).
+- [X] T003 [P] Add StandardRB config `.standard.yml` + Rake task `lint` + `bundle exec standardrb` CI target (P4).
+- [X] T004 [P] Add GitHub Actions CI workflow `.github/workflows/ci.yml` (matrix: 3.1,3.2,3.3; steps: install, lint, spec) (P4).
+- [X] T005 [P] Initialize `.rspec` with color + `--require spec_helper`.
 
 ## Phase 3.2: Tests First (Contracts & Integration) – ALL must fail initially
 ### Contract Specs
-- [ ] T006 [P] Processors contract spec: `spec/processors/processors_contract_spec.rb` (仅 2 处理器, 无 BlockMacro/TreeProcessor, 无 Mathematical, alias warn once, precedence outline) (P1,P2,FR-025).
-- [ ] T007 [P] Renderer pipeline contract spec: `spec/rendering/pipeline_contract_spec.rb` (stage order 固定; 变更需版本 bump; timeout 占位) (P5) *不再测试 pipeline_signature 字段*。
-- [ ] T008 [P] Cache key & disk cache contract spec: `spec/cache/cache_key_contract_spec.rb` (字段顺序: ext_version, content_hash, format, preamble_hash, ppi, entry_type; engine/tool 切换不变; atomic write expectations) (P5 / FR-011)。
-- [ ] T009 [P] Error handling contract spec: `spec/errors/error_handling_contract_spec.rb` (error classes enumerated, on-error policies abort/log behaviors pending) (FR-014/045/046)。
-- [ ] T010 [P] Statistics contract spec: `spec/statistics/statistics_contract_spec.rb` (单行格式 regex, 抑制规则, 四舍五入) (FR-022)。
+- [X] T006 [P] Processors contract spec: `spec/processors/processors_contract_spec.rb` (仅 2 处理器, 无 BlockMacro/TreeProcessor, 无 Mathematical, alias warn once, precedence outline) (P1,P2,FR-025).
+- [X] T007 [P] Renderer pipeline contract spec: `spec/rendering/pipeline_contract_spec.rb` (stage order 固定; 变更需版本 bump; timeout 占位) (P5) *不再测试 pipeline_signature 字段*。
+- [X] T008 [P] Cache key & disk cache contract spec: `spec/cache/cache_key_contract_spec.rb` (字段顺序: ext_version, content_hash, format, preamble_hash, ppi, entry_type; engine/tool 切换不变; atomic write expectations) (P5 / FR-011)。
+- [X] T009 [P] Error handling contract spec: `spec/errors/error_handling_contract_spec.rb` (error classes enumerated, on-error policies abort/log behaviors pending) (FR-014/045/046)。
+- [X] T010 [P] Statistics contract spec: `spec/statistics/statistics_contract_spec.rb` (单行格式 regex, 抑制规则, 四舍五入) (FR-022)。
 ### Integration (Acceptance) Specs
-- [ ] T011 [P] Primary story end-to-end: `spec/integration/primary_story_spec.rb` (svg default, caching across runs) (Scenario 1).
-- [ ] T012 [P] Missing tool failure: `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm & pdf2svg; actionable error) (Scenario 2 / FR-004).
-- [ ] T013 [P] Nocache png with ppi: `spec/integration/nocache_png_spec.rb` (%nocache twice, ppi valid & invalid → invalid pending) (Scenario 3 / FR-007/018) (FR-015 merged into FR-007).
-- [ ] T014 [P] Concurrency atomicity: `spec/integration/concurrency_spec.rb` (two processes same formula: single artifact) (Scenario 4 / FR-013).
-- [ ] T015 [P] Stem alias equivalence: `spec/integration/stem_alias_spec.rb` (stem: vs latexmath: single render) (Scenario 5 / FR-001/011).
+- [X] T011 [P] Primary story end-to-end: `spec/integration/primary_story_spec.rb` (svg default, caching across runs) (Scenario 1)。
+- [X] T012 [P] Missing tool failure: `spec/integration/missing_tool_spec.rb` (simulate absent dvisvgm & pdf2svg; actionable error) (Scenario 2 / FR-004)。
+- [X] T013 [P] Nocache png with ppi: `spec/integration/nocache_png_spec.rb` (%nocache twice, ppi valid & invalid → invalid pending) (Scenario 3 / FR-007/018) (FR-015 merged into FR-007)。
+- [X] T014 [P] Concurrency atomicity: `spec/integration/concurrency_spec.rb` (two processes same formula: single artifact) (Scenario 4 / FR-013)。
+- [X] T015 [P] Stem alias equivalence: `spec/integration/stem_alias_spec.rb` (stem: vs latexmath: single render) (Scenario 5 / FR-001/011)。
 ### Additional Behavior Specs (Pre-Implementation)
-- [ ] T016 [P] Accessibility markup spec: `spec/integration/accessibility_spec.rb` (alt=raw latex, role=math, data-latex-original) (FR-043).
-- [ ] T017 [P] Attribute precedence spec: `spec/integration/attribute_precedence_spec.rb` (element `cachedir=` > doc `:latexmath-cachedir:` > imagesdir fallback > default; positional overrides) (FR-006/009/016/037)。
-- [ ] T018 [P] Alias deprecation spec: `spec/integration/deprecated_alias_spec.rb` (using legacy `cache-dir=` once emits info log naming canonical `cachedir`) (FR-037).
-- [ ] T019 [P] Conflict detection spec: `spec/integration/conflict_detection_spec.rb` (different signatures same basename error) (FR-040).
-- [ ] T020 [P] Error placeholder spec: `spec/integration/error_placeholder_spec.rb` (on-error=log placeholder sections order) (FR-046).
-- [ ] T077 [P] Output path resolution matrix spec: `spec/integration/output_path_resolution_spec.rb` (imagesoutdir/outdir/imagesdir precedence + basename 路径越界信任策略接受性) (FR-008)。
- - [ ] T078 [P] Engine selection basic spec: `spec/integration/engine_selection_basic_spec.rb` (global `:pdflatex:` vs doc `:latexmath-pdflatex:` vs block `pdflatex=` 覆写顺序；切换 pdflatex↔xelatex 不致缓存失效) (FR-003/049/050)。
- - [ ] T080 [P] Cache hit zero-spawn spec: `spec/integration/cache_hit_zero_spawn_spec.rb` (两次构建：第二次断言 0 外部进程 spawn，通过 stub 计数) (P5/FR-011/NFR-002)。
+- [X] T016 [P] Accessibility markup spec: `spec/integration/accessibility_spec.rb` (alt=raw latex, role=math, data-latex-original) (FR-043)。
+- [X] T017 [P] Attribute precedence spec: `spec/integration/attribute_precedence_spec.rb` (element `cachedir=` > doc `:latexmath-cachedir:` > imagesdir fallback > default; positional overrides) (FR-006/009/016/037)。
+- [X] T018 [P] Alias deprecation spec: `spec/integration/deprecated_alias_spec.rb` (using legacy `cache-dir=` once emits info log naming canonical `cachedir`) (FR-037)。
+- [X] T019 [P] Conflict detection spec: `spec/integration/conflict_detection_spec.rb` (different signatures same basename error) (FR-040)。
+- [X] T020 [P] Error placeholder spec: `spec/integration/error_placeholder_spec.rb` (on-error=log placeholder sections order) (FR-046)。
+- [X] T077 [P] Output path resolution matrix spec: `spec/integration/output_path_resolution_spec.rb` (imagesoutdir/outdir/imagesdir precedence + basename 路径越界信任策略接受性) (FR-008)。
+- [X] T078 [P] Engine selection basic spec: `spec/integration/engine_selection_basic_spec.rb` (global `:pdflatex:` vs doc `:latexmath-pdflatex:` vs block `pdflatex=` 覆写顺序；切换 pdflatex↔xelatex 不致缓存失效) (FR-003/049/050)。
+- [X] T080 [P] Cache hit zero-spawn spec: `spec/integration/cache_hit_zero_spawn_spec.rb` (两次构建：第二次断言 0 外部进程 spawn，通过 stub 计数) (P5/FR-011/NFR-002)。
 
 ## Phase 3.3: Core Models & Interfaces (stubs only; run after T006–T020 exist)
-- [ ] T021 [P] Stub MathExpression: `lib/asciidoctor/latexmath/math_expression.rb` (attrs, TODO invariants).
-- [ ] T022 [P] Stub RenderRequest: `lib/asciidoctor/latexmath/render_request.rb`.
-- [ ] T023 [P] (Reserved) pipeline signature 概念已退役（参见 spec 历史说明）；编号仅占位，无需实现文件。
-- [ ] T024 [P] Stub CacheEntry: `lib/asciidoctor/latexmath/cache/cache_entry.rb`.
-- [ ] T025 [P] Skeleton DiskCache: `lib/asciidoctor/latexmath/cache/disk_cache.rb` (fetch/store/with_lock raise NotImplementedError).
-- [ ] T026 [P] Stub ToolchainRecord: `lib/asciidoctor/latexmath/rendering/toolchain_record.rb`.
-- [ ] T027 [P] Renderer interface/base: `lib/asciidoctor/latexmath/rendering/renderer.rb` (IRenderer methods + result struct).
-- [ ] T028 [P] ConflictRegistry: `lib/asciidoctor/latexmath/support/conflict_registry.rb` (register! skeleton).
+- [X] T021 [P] Stub MathExpression: `lib/asciidoctor/latexmath/math_expression.rb` (attrs, TODO invariants).
+- [X] T022 [P] Stub RenderRequest: `lib/asciidoctor/latexmath/render_request.rb`.
+- [X] T023 [P] (Reserved) pipeline signature 概念已退役（参见 spec 历史说明）；编号仅占位，无需实现文件。
+- [X] T024 [P] Stub CacheEntry: `lib/asciidoctor/latexmath/cache/cache_entry.rb`.
+- [X] T025 [P] Skeleton DiskCache: `lib/asciidoctor/latexmath/cache/disk_cache.rb` (fetch/store/with_lock raise NotImplementedError).
+- [X] T026 [P] Stub ToolchainRecord: `lib/asciidoctor/latexmath/rendering/toolchain_record.rb`.
+- [X] T027 [P] Renderer interface/base: `lib/asciidoctor/latexmath/rendering/renderer.rb` (IRenderer methods + result struct).
+- [X] T028 [P] ConflictRegistry: `lib/asciidoctor/latexmath/support/conflict_registry.rb` (register! skeleton).
 
 ## Phase 3.4: Core Services & Pipeline
-- [ ] T029 Attribute resolver: `lib/asciidoctor/latexmath/attribute_resolver.rb` (precedence chain, alias normalization, ppi/timeout validation stubs) depends: T021,T022.
-- [ ] T030 Tool presence detector: `lib/asciidoctor/latexmath/rendering/tool_detector.rb` (one-time presence detection, 不采集版本号) depends: T026.
-- [ ] T031 Cache key implementation: `lib/asciidoctor/latexmath/cache/cache_key.rb` (ordered fields, digest) depends: T023,T024,T025.
-- [ ] T032 Pipeline orchestrator: `lib/asciidoctor/latexmath/rendering/pipeline.rb` (sequential execution, timing hooks) depends: T027,T023.
-- [ ] T033 Pdflatex renderer stage: `lib/asciidoctor/latexmath/rendering/pdflatex_renderer.rb` depends: T032,T030.
-- [ ] T034 [P] Pdf→SVG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_svg_renderer.rb` depends: T033.
-- [ ] T035 [P] Pdf→PNG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_png_renderer.rb` depends: T033.
-- [ ] T036 Processors (block + inline): `lib/asciidoctor/latexmath/processors/{block_processor,inline_macro_processor}.rb` depends: T029,T030,T031,T032,T033–T035,T028.
-- [ ] T037 Extension wiring entrypoint: `lib/asciidoctor-latexmath.rb` (register only processors) depends: T036.
+ - [X] T029 Attribute resolver: `lib/asciidoctor/latexmath/attribute_resolver.rb` (precedence chain, alias normalization, ppi/timeout validation stubs) depends: T021,T022.
+ - [X] T030 Tool presence detector: `lib/asciidoctor/latexmath/rendering/tool_detector.rb` (one-time presence detection, 不采集版本号) depends: T026.
+ - [X] T031 Cache key implementation: `lib/asciidoctor/latexmath/cache/cache_key.rb` (ordered fields, digest) depends: T023,T024,T025.
+ - [X] T032 Pipeline orchestrator: `lib/asciidoctor/latexmath/rendering/pipeline.rb` (sequential execution, timing hooks) depends: T027,T023.
+ - [X] T033 Pdflatex renderer stage: `lib/asciidoctor/latexmath/rendering/pdflatex_renderer.rb` depends: T032,T030.
+ - [X] T034 [P] Pdf→SVG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_svg_renderer.rb` depends: T033.
+ - [X] T035 [P] Pdf→PNG renderer stage: `lib/asciidoctor/latexmath/rendering/pdf_to_png_renderer.rb` depends: T033.
+ - [X] T036 Processors (block + inline): `lib/asciidoctor/latexmath/processors/{block_processor,inline_macro_processor}.rb` depends: T029,T030,T031,T032,T033–T035,T028.
+ - [X] T037 Extension wiring entrypoint: `lib/asciidoctor-latexmath.rb` (register only processors) depends: T036.
 
 ## Phase 3.5: Behavior Implementation & Edge Cases
 - [ ] T038 Cache store + hit logic: integrate DiskCache + CacheKey (FR-011) depends: T031,T025,T037.
@@ -108,14 +108,14 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [ ] T074 No eviction behavior spec: `spec/cache/no_eviction_behavior_spec.rb` (断言无后台 eviction 线程 & 日志) (FR-039)。
 - [ ] T075 Format variants spec: `spec/integration/format_variants_spec.rb` (pdf 与 png 明确覆盖) (FR-002)。
 - [ ] T076 Inline output structure spec: `spec/integration/inline_output_structure_spec.rb` (`<img>` 引用, 无 data URI 生成) (FR-024)。
- - [ ] T079 [P] Pipeline stage immutability spec: `spec/integration/pipeline_stage_immutability_spec.rb` (缺失首选 svg 工具时 fail-fast 而非动态删减/重排阶段；stage list fingerprint 不变) (P5/FR-047/011)。
- - [ ] T081 [P] Terminology enforcement spec: `spec/integration/terminology_enforcement_spec.rb` (legacy alias 仅首次日志；重复无新增；内部使用 canonical 名称) (NFR-007/FR-037)。
- - [ ] T082 [P] No internal parallel / no dynamic stage insertion spec: `spec/integration/no_internal_parallel_spec.rb` (单进程内渲染多个表达式验证无并行线程/进程 spawn 超出未命中数；断言阶段列表不因 tool availability 变化) (FR-038/P5, complements T079)。
- - [ ] T083 [P] Windows path separator compatibility spec: `spec/integration/windows_path_compat_spec.rb` (使用 Windows 风格 `imagesdir`/`cachedir` 反斜杠路径 + 混合 `..` 段；同时与 POSIX 风格组合；断言最终输出/缓存目录解析一致且不依赖运行平台) (FR-008/037, C1)。
- - [ ] T084 [P] Mixed miss spawn count spec: `spec/integration/mixed_miss_spawn_count_spec.rb` (两轮构建：首轮 N 未命中；第二轮新增 K 表达式；断言第二轮新增外部进程 = K) (FR-044 MUST(4))。
- - [ ] T085 [P] Cache hit no directory enumeration spec: `spec/integration/cache_hit_no_enum_spec.rb` (预填充缓存后命中运行，spy 断言未调用 Dir.glob/Find；外部进程=0) (FR-044 MUST(2)/(3))。
- - [ ] T086 [P] Memory retention spot-check spec: `spec/performance/memory_retention_spec.rb` (大量表达式渲染后 RSS 与对象数未线性增长；无全量产物集合驻留) (FR-044 MUST(5) 观察)。
- - [ ] T087 [P] Governance coverage audit task: `spec/governance/coverage_audit_spec.rb` + `scripts/governance_audit.rb` (交叉比对 FR ↔ 任务引用；输出缺失映射提示) (FR-026 C1)。
+- [ ] T079 [P] Pipeline stage immutability spec: `spec/integration/pipeline_stage_immutability_spec.rb` (缺失首选 svg 工具时 fail-fast 而非动态删减/重排阶段；stage list fingerprint 不变) (P5/FR-047/011)。
+- [ ] T081 [P] Terminology enforcement spec: `spec/integration/terminology_enforcement_spec.rb` (legacy alias 仅首次日志；重复无新增；内部使用 canonical 名称) (NFR-007/FR-037)。
+- [ ] T082 [P] No internal parallel / no dynamic stage insertion spec: `spec/integration/no_internal_parallel_spec.rb` (单进程内渲染多个表达式验证无并行线程/进程 spawn 超出未命中数；断言阶段列表不因 tool availability 变化) (FR-038/P5, complements T079)。
+- [ ] T083 [P] Windows path separator compatibility spec: `spec/integration/windows_path_compat_spec.rb` (使用 Windows 风格 `imagesdir`/`cachedir` 反斜杠路径 + 混合 `..` 段；同时与 POSIX 风格组合；断言最终输出/缓存目录解析一致且不依赖运行平台) (FR-008/037, C1)。
+- [ ] T084 [P] Mixed miss spawn count spec: `spec/integration/mixed_miss_spawn_count_spec.rb` (两轮构建：首轮 N 未命中；第二轮新增 K 表达式；断言第二轮新增外部进程 = K) (FR-044 MUST(4))。
+- [ ] T085 [P] Cache hit no directory enumeration spec: `spec/integration/cache_hit_no_enum_spec.rb` (预填充缓存后命中运行，spy 断言未调用 Dir.glob/Find；外部进程=0) (FR-044 MUST(2)/(3))。
+- [ ] T086 [P] Memory retention spot-check spec: `spec/performance/memory_retention_spec.rb` (大量表达式渲染后 RSS 与对象数未线性增长；无全量产物集合驻留) (FR-044 MUST(5) 观察)。
+- [ ] T087 [P] Governance coverage audit task: `spec/governance/coverage_audit_spec.rb` + `scripts/governance_audit.rb` (交叉比对 FR ↔ 任务引用；输出缺失映射提示) (FR-026 C1)。
 
 Updated Dependencies (Additions / Adjustments)
 T061 → T047
@@ -159,16 +159,16 @@ Validation Checklist (Additions / Revised)
 - [ ] Missing tool hint (T071) covers FR-030.
 - [ ] No eviction behavior (T074) covers FR-039.
 - [ ] Output path resolution matrix (T077) covers FR-008 precedence & traversal acceptance.
- - [ ] Pipeline stage immutability (T079) enforces P5 no dynamic stage change.
- - [ ] Cache hit zero-spawn (T080) validates P5 / FR-011 / NFR-002。
- - [ ] Terminology enforcement (T081) single deprecation log (NFR-007/FR-037)。
- - [ ] Engine selection basic precedence (T078) covers FR-003 existence。
- - [ ] No internal parallel execution (T082) covers FR-038 (串行保证)。
- - [ ] Windows path compatibility (T083) covers FR-008/037 跨平台路径解析。
-	- [ ] Mixed miss spawn count (T084) covers FR-044 MUST(4) (M>0)。
-	- [ ] No directory enumeration on cache hit (T085) covers FR-044 MUST(3)。
-	- [ ] Memory retention spot-check (T086) observes FR-044 MUST(5) (非门控)。
-	- [ ] Governance coverage audit (T087) covers FR-026 流程治理映射。
+- [ ] Pipeline stage immutability (T079) enforces P5 no dynamic stage change.
+- [ ] Cache hit zero-spawn (T080) validates P5 / FR-011 / NFR-002。
+- [ ] Terminology enforcement (T081) single deprecation log (NFR-007/FR-037)。
+- [ ] Engine selection basic precedence (T078) covers FR-003 existence。
+- [ ] No internal parallel execution (T082) covers FR-038 (串行保证)。
+- [ ] Windows path compatibility (T083) covers FR-008/037 跨平台路径解析。
+- [ ] Mixed miss spawn count (T084) covers FR-044 MUST(4) (M>0)。
+- [ ] No directory enumeration on cache hit (T085) covers FR-044 MUST(3)。
+- [ ] Memory retention spot-check (T086) observes FR-044 MUST(5) (非门控)。
+- [ ] Governance coverage audit (T087) covers FR-026 流程治理映射。
 
 ## Dependencies (Summary)
 T002 → T001

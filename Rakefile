@@ -6,6 +6,12 @@
 
 require "rake/clean"
 
+begin
+  require "standard/rake"
+rescue LoadError
+  warn "StandardRB not available; install dependencies with bundle install" if $PROGRAM_NAME == __FILE__
+end
+
 CLEAN.include("sample.html", "generated_images")
 
 if File.exist?("asciidoctor-latexmath.gemspec")
@@ -40,6 +46,11 @@ end
 desc "Render sample.adoc with the local extension"
 task :sample do
   sh SAMPLE_RENDER_CMD
+end
+
+desc "Run StandardRB lint"
+task :lint do
+  sh "bundle exec standardrb"
 end
 
 task default: :sample
