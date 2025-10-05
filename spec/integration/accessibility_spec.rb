@@ -46,4 +46,23 @@ RSpec.describe "Accessibility markup" do
       end
     end
   end
+
+  it "honors user-provided alt while preserving original latex metadata" do
+    within_tmpdir do |dir|
+      Dir.chdir(dir) do
+        source = <<~'ADOC'
+          [latexmath, alt="Custom description", role="equation"]
+          ++++
+          \frac{a}{b}
+          ++++
+        ADOC
+
+        html = convert_with_extension(source, attributes: {"imagesdir" => "images"})
+
+        expect(html).to include('alt="Custom description"')
+        expect(html).to include('data-latex-original="\\frac{a}{b}"')
+        expect(html).to include('class="imageblock equation math"')
+      end
+    end
+  end
 end

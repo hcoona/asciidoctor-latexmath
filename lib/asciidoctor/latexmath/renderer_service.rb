@@ -125,7 +125,7 @@ module Asciidoctor
           render_with_cache(document_obj, request, expression, paths, resolved, cache_key)
         end
 
-        build_success_result(expression, request, paths.public_target, final_path)
+        build_success_result(expression, request, paths.public_target, final_path, attrs)
       rescue TargetConflictError => error
         raise error
       rescue MissingToolError => error
@@ -221,7 +221,7 @@ module Asciidoctor
         start = monotonic_time
         generated_path = nil
 
-        generate_artifact(request, paths.basename, raw_attrs) do |output_path, artifact_dir|
+        generate_artifact(request, paths.basename, raw_attrs) do |output_path, artifact_dir, _tool_presence|
           generated_path = output_path
           copy_to_target(output_path, paths.final_path, overwrite: true)
           persist_artifacts(request, artifact_dir, success: true)
@@ -263,7 +263,7 @@ module Asciidoctor
         start = monotonic_time
         stored_path = nil
 
-        generate_artifact(request, basename, raw_attrs) do |output_path, artifact_dir|
+        generate_artifact(request, basename, raw_attrs) do |output_path, artifact_dir, tool_presence|
           checksum = Digest::SHA256.file(output_path).hexdigest
           size_bytes = File.size(output_path)
 
@@ -277,7 +277,8 @@ module Asciidoctor
             entry_type: expression.entry_type,
             created_at: Time.now,
             checksum: "sha256:#{checksum}",
-            size_bytes: size_bytes
+            size_bytes: size_bytes,
+            tool_presence: tool_presence
           )
 
           disk_cache.store(cache_key.digest, cache_entry, output_path)
@@ -304,6 +305,8 @@ module Asciidoctor
           tex_artifact_path: tex_artifact_path,
           log_artifact_path: log_artifact_path
         }
+        tool_detector = context.fetch(:tool_detector)
+        tool_detector.record_engine(request.engine)
 
         if request.expression.content.include?("\\error")
           persist_artifacts(request, artifact_dir, success: false)
@@ -311,7 +314,7 @@ module Asciidoctor
         end
 
         output_path = build_pipeline.execute(request, context)
-        yield output_path, artifact_dir
+        yield output_path, artifact_dir, tool_detector.tool_presence
       rescue RenderTimeoutError => error
         write_log_artifact(artifact_dir, basename, "latexmath render failed: #{error.message}", request)
         persist_artifacts(request, artifact_dir, success: false)
@@ -379,7 +382,8 @@ module Asciidoctor
         ])
       end
 
-      def build_success_result(expression, request, public_target, final_path)
+      def build_success_result(expression, request, public_target, final_path, original_attrs)
+        user_alt = original_attrs && extract_attribute(original_attrs, :alt)
         Result.new(
           type: :image,
           target: public_target,
@@ -388,12 +392,16 @@ module Asciidoctor
           alt_text: expression.content.strip,
           attributes: {
             "target" => public_target,
-            "alt" => expression.content.strip,
+            "alt" => (user_alt.nil? || user_alt.to_s.empty?) ? expression.content.strip : user_alt.to_s,
             "format" => request.format.to_s,
             "data-latex-original" => expression.content.strip,
             "role" => "math"
           }
         )
+      end
+
+      def extract_attribute(attrs, name)
+        attrs[name.to_s] || attrs[name]
       end
 
       def handle_render_failure(error, resolved, expression, request)

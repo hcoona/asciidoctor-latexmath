@@ -39,8 +39,8 @@ module Asciidoctor
         def build_inline_attributes(result, original_attrs)
           attributes = result.attributes.dup
           attributes["target"] ||= result.target
-          attributes["alt"] ||= result.alt_text
-          attributes["data-latex-original"] ||= result.alt_text
+          attributes["alt"] = sanitize_alt(fetch_attr(original_attrs, :alt), result.alt_text)
+          attributes["data-latex-original"] = result.alt_text
           attributes["role"] = merge_roles(attributes["role"], fetch_attr(original_attrs, :role))
           attributes
         end
@@ -49,6 +49,13 @@ module Asciidoctor
           return nil unless attrs
 
           attrs[name.to_s] || attrs[name]
+        end
+
+        def sanitize_alt(user_value, fallback)
+          return fallback if user_value.nil?
+
+          value = user_value.to_s
+          value.empty? ? fallback : value
         end
 
         def merge_roles(existing_role, additional_role)

@@ -287,6 +287,29 @@ package "Asciidoctor::Latexmath" {
   - 并发加锁：使用 `File.flock` 或原子 `Dir.mktmpdir` + `FileUtils.mv`。失败时抛出带路径提示的异常。
 - 元数据中记录的校验和可协助判断缓存腐化；CLI 提供清理子命令（待后续实现）。
 
+### 缓存键示意图
+
+缓存键通过“字段 + 管道”串联后计算 sha1 哈希，字段顺序固定且不包含工具链名称。下图展示了逻辑拼装结构：
+
+```text
++--------------+---------------+--------+----------------+-----+------------+
+| ext_version  | content_hash  | format | preamble_hash  | ppi | entry_type |
++--------------+---------------+--------+----------------+-----+------------+
+        \_____________ 按顺序连接为: __________________/
+                      ext_version|content_hash|format|preamble_hash|ppi|entry_type
+                             ↓
+                    SHA1(key_string) => cache/<digest>/
+```
+
+- `ext_version`：当管线阶段列表或磁盘格式发生兼容性变化时递增。
+- `content_hash`：基于规范化 LaTeX 源文本。
+- `format`：输出格式，`svg` / `png` / `pdf`。
+- `preamble_hash`：文档与元素级 preamble 内容计算的哈希；无 preamble 记为 `-`。
+- `ppi`：仅 PNG 场景参与（非 PNG 记为 `-`）；确保 DPI 不污染其它格式。
+- `entry_type`：`inline` / `block`，分隔内联与块缓存命名空间。
+
+该顺序是公开契约，若未来添加字段必须同步 bump `ext_version` 并更新设计文档说明，以保证缓存命中行为可预测。
+
 ## 属性支持矩阵
 
 | 属性 / 选项 | 生效层级 | 解析组件 | 消费组件 |

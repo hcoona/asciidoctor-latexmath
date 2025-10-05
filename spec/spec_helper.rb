@@ -18,6 +18,7 @@ module SpecSupport
 end
 
 require_relative "support/document_helpers"
+require_relative "support/tool_stub_helpers"
 
 RSpec.configure do |config|
   config.disable_monkey_patching!
@@ -32,6 +33,7 @@ RSpec.configure do |config|
 
   config.include SpecSupport::TmpDir
   config.include SpecSupport::DocumentHelpers
+  config.include SpecSupport::ToolStubHelpers
 
   config.shared_context_metadata_behavior = :apply_to_host_groups
 

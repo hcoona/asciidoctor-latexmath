@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later WITH LGPL-3.0-linking-exception
 
 require "asciidoctor"
+require "shellwords"
 
 require_relative "toolchain_record"
 require_relative "../../latexmath/errors"
@@ -19,6 +20,7 @@ module Asciidoctor
         def initialize(request, raw_attributes)
           @request = request
           @raw_attributes = raw_attributes || {}
+          @tool_presence_map = {}
         end
 
         def ensure_svg_tool!
@@ -45,37 +47,55 @@ module Asciidoctor
           raise MissingToolError.new(record.id, message)
         end
 
+        def record_engine(command)
+          return if command.nil?
+
+          id = canonical_engine_id(command)
+          tool_presence_map[id] = true
+        end
+
+        def tool_presence
+          tool_presence_map.transform_keys(&:to_s)
+        end
+
         private
 
         attr_reader :request
         attr_reader :raw_attributes
+        attr_reader :tool_presence_map
 
         def detect_svg_tool
           if (explicit = explicit_svg_path)
             id = infer_identifier(request.tool_overrides[:svg] || :pdf2svg, SVG_PRIORITY)
             available = executable_file?(explicit)
-            return ToolchainRecord.new(id: id, available: available, path: explicit)
+            return remember_record(ToolchainRecord.new(id: id, available: available, path: explicit))
           end
 
           override = request.tool_overrides[:svg]
-          record = resolve_override(override, SVG_PRIORITY)
-          return record if record
+          if override
+            record = resolve_override(override, SVG_PRIORITY)
+            return remember_record(record)
+          end
 
-          detect_with_priority(SVG_PRIORITY)
+          records = SVG_PRIORITY.map { |candidate| remember_record(memoized_lookup(candidate)) }
+          records.find(&:available) || records.first
         end
 
         def detect_png_tool
           if (explicit = explicit_png_path)
             id = infer_identifier(request.tool_overrides[:png] || :pdftoppm, PNG_PRIORITY)
             available = executable_file?(explicit)
-            return ToolchainRecord.new(id: id, available: available, path: explicit)
+            return remember_record(ToolchainRecord.new(id: id, available: available, path: explicit))
           end
 
           override = request.tool_overrides[:png]
-          record = resolve_override(override, PNG_PRIORITY)
-          return record if record
+          if override
+            record = resolve_override(override, PNG_PRIORITY)
+            return remember_record(record)
+          end
 
-          detect_with_priority(PNG_PRIORITY)
+          records = PNG_PRIORITY.map { |candidate| remember_record(memoized_lookup(candidate)) }
+          records.find(&:available) || records.first
         end
 
         def detect_with_priority(priority)
@@ -95,13 +115,13 @@ module Asciidoctor
 
           if File.exist?(candidate)
             available = File.executable?(candidate)
-            return ToolchainRecord.new(id: id, available: available, path: candidate)
+            return remember_record(ToolchainRecord.new(id: id, available: available, path: candidate))
           end
 
           record = memoized_lookup(id, candidate)
-          return record if record.available
+          return remember_record(record) if record.available
 
-          ToolchainRecord.new(id: id, available: false, path: candidate)
+          remember_record(ToolchainRecord.new(id: id, available: false, path: candidate))
         end
 
         def infer_identifier(candidate, priority)
@@ -189,6 +209,22 @@ module Asciidoctor
           return [override.to_s.strip].reject(&:empty?) unless override.nil? || override.to_s.strip.empty?
 
           PNG_PRIORITY.map(&:to_s)
+        end
+
+        def remember_record(record)
+          return record unless record
+
+          tool_presence_map[record.id] = record.available
+          record
+        end
+
+        def canonical_engine_id(command)
+          first = Shellwords.shellsplit(command.to_s).first
+          return :pdflatex unless first
+
+          first.downcase.gsub(/[^a-z0-9]+/, "_").to_sym
+        rescue ArgumentError
+          :pdflatex
         end
 
         class << self

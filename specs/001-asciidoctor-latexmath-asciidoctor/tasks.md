@@ -74,15 +74,15 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [X] T044 Attribute precedence & alias normalization full logic (makes T017/T018 green) depends: T029,T036.
 - [X] T045 Error placeholder + on-error policy (FR-014/045/046) depends: T036,T041,T042.
 - [X] T046 Statistics collection & emission (FR-022/035) depends: T038,T042.
-- [ ] T047 Accessibility markup injection (FR-043) depends: T036.
-- [ ] T048 PPI validation & range errors (FR-018) depends: T029,T036.
-- [ ] T049 Stem alias handling (FR-001/011) depends: T036.
-- [ ] T050 Cache key tool signature integration (FR-020) depends: T030,T031.
+- [X] T047 Accessibility markup injection (FR-043) depends: T036.
+- [X] T048 PPI validation & range errors (FR-018) depends: T029,T036.
+- [X] T049 Stem alias handling (FR-001/011) depends: T036.
+- [X] T050 Cache key tool signature integration (FR-020) depends: T030,T031.
 
 ## Phase 3.6: Performance, Determinism & Documentation
-- [ ] T051 [P] Performance smoke spec: `spec/performance/render_perf_spec.rb` (skip if tools missing) depends: T042,T046.
-- [ ] T052 [P] Determinism spec: `spec/integration/determinism_spec.rb` (two runs identical checksum + no re-render) depends: T038,T050.
-- [ ] T053 [P] Statistics suppression & rounding spec (make T010/T046 green) `spec/statistics/statistics_behavior_spec.rb` depends: T046.
+- [X] T051 [P] Performance smoke spec: `spec/performance/render_perf_spec.rb` (skip if tools missing) depends: T042,T046.
+- [X] T052 [P] Determinism spec: `spec/integration/determinism_spec.rb` (two runs identical checksum + no re-render) depends: T038,T050.
+- [X] T053 [P] Statistics suppression & rounding spec (make T010/T046 green) `spec/statistics/statistics_behavior_spec.rb` depends: T046.
 - [ ] T054 README attributes & usage table (FR-027) depends: T044,T046,T047.
 - [ ] T055 Update DESIGN.md remove BlockMacro references; add cache key diagram depends: T054.
 - [ ] T056 Add examples: `examples/block_svg.adoc`, `examples/png_cached.adoc`, `examples/inline_mix.adoc`, `examples/error_placeholder.adoc` depends: T045,T041.

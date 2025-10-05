@@ -9,9 +9,9 @@ module Asciidoctor
     module Cache
       class CacheEntry
         attr_reader :final_path, :format, :content_hash, :preamble_hash, :engine,
-          :ppi, :entry_type, :created_at, :checksum, :size_bytes
+          :ppi, :entry_type, :created_at, :checksum, :size_bytes, :tool_presence
 
-        def initialize(final_path:, format:, content_hash:, preamble_hash:, engine:, ppi:, entry_type:, created_at:, checksum:, size_bytes:)
+        def initialize(final_path:, format:, content_hash:, preamble_hash:, engine:, ppi:, entry_type:, created_at:, checksum:, size_bytes:, tool_presence: {})
           @final_path = final_path
           @format = format
           @content_hash = content_hash
@@ -22,6 +22,7 @@ module Asciidoctor
           @created_at = created_at
           @checksum = checksum
           @size_bytes = size_bytes
+          @tool_presence = (tool_presence || {}).transform_keys(&:to_s)
         end
       end
     end

@@ -162,6 +162,7 @@ package "Asciidoctor::Latexmath" {
       format, preamble_hash, ppi, entry_type.
     Excludes engine/tool names & versions.
     Engine/tool switch => cache hit.
+    Non-applicable preamble/ppi values use '-' sentinel.
   end note
 
   note bottom of RenderRequest

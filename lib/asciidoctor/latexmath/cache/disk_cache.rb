@@ -41,7 +41,8 @@ module Asciidoctor
             entry_type: to_symbol(metadata["entry_type"]),
             created_at: Time.parse(metadata["created_at"]),
             checksum: metadata["checksum"],
-            size_bytes: metadata["size_bytes"]
+            size_bytes: metadata["size_bytes"],
+            tool_presence: metadata["tool_presence"] || {}
           )
         rescue JSON::ParserError, Errno::ENOENT
           nil
@@ -73,7 +74,8 @@ module Asciidoctor
               "entry_type" => cache_entry.entry_type.to_s,
               "created_at" => cache_entry.created_at.utc.iso8601,
               "checksum" => "sha256:#{checksum}",
-              "size_bytes" => size_bytes
+              "size_bytes" => size_bytes,
+              "tool_presence" => cache_entry.tool_presence
             }
 
             File.write(temp_metadata, JSON.pretty_generate(metadata))
