@@ -93,8 +93,8 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 
 ## Phase 3.7: Additional Coverage (Remediation A3–A5, U4, C1–C5, C7–C9)
 - [X] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
-- [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5)。
-- [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (simulate 16-char prefix collision → 升级为 32-char 基名无数字后缀；缓存键仍用全 64；可选 stub 二次冲突) (FR-010/011 新策略)。
+- [X] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5)。
+- [X] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (simulate 16-char prefix collision → 升级为 32-char 基名无数字后缀；缓存键仍用全 64；可选 stub 二次冲突) (FR-010/011 新策略)。
 - [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019)。
 - [ ] T065 (Removed) 路径遍历防御测试取消：信任模型允许 `..`，参见 spec A4/I1 说明。
 - [ ] T066 Mixed formats same doc spec: `spec/integration/mixed_formats_spec.rb` (svg + png + pdf concurrently; independent cache entries; no cross pollution) (FR-028/021/011)。
@@ -149,7 +149,7 @@ Validation Checklist (Additions / Revised)
 - [ ] SVG tool priority (T061) green before renderer fallback logic changes.
 - [ ] Engine precedence & normalization (T062,T068) covers A5 no-fallback & flag append.
 - [ ] Unicode diversity (T067) covers U4 enumerated set.
-- [ ] Hash collision scenario (T063) 16→32 字符升级策略落实（无数字后缀）。
+- [X] Hash collision scenario (T063) 16→32 字符升级策略落实（无数字后缀）。
 - [ ] Unsupported value actionable errors (T064) align FR-019 contract.
 - [ ] Tool summary log (T072) matches FR-031 format.
 - [ ] Large formula timing (T073) matches FR-032 format & threshold.

@@ -17,6 +17,13 @@ module Asciidoctor
       MAX_PPI = 600
       DEFAULT_PPI = 300
       DEFAULT_TIMEOUT = 120
+      SUPPORTED_ENGINES = %i[pdflatex xelatex lualatex tectonic].freeze
+      ENGINE_DEFAULTS = {
+        pdflatex: "pdflatex",
+        xelatex: "xelatex",
+        lualatex: "lualatex",
+        tectonic: "tectonic"
+      }.freeze
 
       ResolvedAttributes = Struct.new(
         :render_request,
@@ -124,7 +131,9 @@ module Asciidoctor
       end
 
       def infer_engine(attrs)
-        (attrs["pdflatex"] || document.attr("latexmath-pdflatex") || document.attr("pdflatex") || "pdflatex").to_s.strip
+        engine_name = determine_engine_name(attrs)
+        command = resolve_engine_command(engine_name, attrs)
+        command.to_s.strip
       end
 
       def infer_preamble(attrs)
@@ -196,6 +205,62 @@ module Asciidoctor
           png_path: normalize_override(png_path),
           engine: normalize_override(engine_tool)
         }
+      end
+
+      def determine_engine_name(attrs)
+        explicit = fetch_string(attrs, "engine")
+        return normalize_engine_name(explicit) if explicit
+
+        SUPPORTED_ENGINES.each do |engine|
+          key = engine.to_s
+          return engine if attrs.key?(key) || attrs.key?(engine)
+        end
+
+        document_engine = document&.attr("latexmath-engine")
+        return normalize_engine_name(document_engine) if document_engine
+
+        :pdflatex
+      end
+
+      def resolve_engine_command(engine_name, attrs)
+        element_override = fetch_string(attrs, engine_name.to_s)
+        return element_override if element_override
+
+        doc_override = document_engine_override(engine_name)
+        return doc_override if doc_override
+
+        ENGINE_DEFAULTS.fetch(engine_name) { ENGINE_DEFAULTS[:pdflatex] }
+      end
+
+      def document_engine_override(engine_name)
+        return nil unless document
+
+        candidates = []
+        candidates << document.attr("latexmath-#{engine_name}")
+        candidates << document.attr(engine_name.to_s)
+        if engine_name != :pdflatex
+          candidates << document.attr("latexmath-pdflatex")
+          candidates << document.attr("pdflatex")
+        end
+
+        candidates.compact.each do |candidate|
+          normalized = candidate.to_s.strip
+          return normalized unless normalized.empty?
+        end
+
+        nil
+      end
+
+      def normalize_engine_name(value)
+        return nil if value.nil?
+
+        normalized = value.to_s.strip.downcase
+        raise InvalidAttributeError, "engine cannot be blank" if normalized.empty?
+
+        candidate = normalized.gsub(/[^a-z0-9]+/, "_").to_sym
+        return candidate if SUPPORTED_ENGINES.include?(candidate)
+
+        raise InvalidAttributeError, "Unknown engine '#{value}'"
       end
 
       def infer_nocache(attrs, options)
