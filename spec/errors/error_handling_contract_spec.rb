@@ -29,6 +29,7 @@ RSpec.describe "Error classes" do
       unsupported_format: Asciidoctor::Latexmath::UnsupportedFormatError,
       missing_tool: Asciidoctor::Latexmath::MissingToolError,
       invalid_attribute: Asciidoctor::Latexmath::InvalidAttributeError,
+      unsupported_value: Asciidoctor::Latexmath::UnsupportedValueError,
       target_conflict: Asciidoctor::Latexmath::TargetConflictError,
       render_timeout: Asciidoctor::Latexmath::RenderTimeoutError,
       stage_failure: Asciidoctor::Latexmath::StageFailureError

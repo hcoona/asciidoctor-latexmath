@@ -16,12 +16,23 @@ module Asciidoctor
       class ToolDetector
         SVG_PRIORITY = %i[dvisvgm pdf2svg].freeze
         PNG_PRIORITY = %i[pdftoppm magick gs].freeze
+        SUMMARY_IDENTIFIERS = (SVG_PRIORITY + %i[pdflatex xelatex lualatex tectonic] + PNG_PRIORITY).freeze
 
         def initialize(request, raw_attributes)
           @request = request
           @raw_attributes = raw_attributes || {}
           @tool_presence_map = {}
           @svg_log_emitted = false
+        end
+
+        def emit_tool_summary
+          self.class.emit_summary_once do
+            summary = SUMMARY_IDENTIFIERS.map do |identifier|
+              record = summary_record(identifier)
+              "#{identifier}=#{record.available ? "ok" : "missing"}"
+            end.join(" ")
+            Asciidoctor::LoggerManager.logger&.info { "latexmath.tools: #{summary}" }
+          end
         end
 
         def ensure_svg_tool!
@@ -31,9 +42,13 @@ module Asciidoctor
           log_svg_tool_selection(record)
           return record if record.available
 
-          message = <<~MSG.strip
-            Required SVG conversion tool not available. Tried: #{svg_candidates.join(", ")}. Configure :latexmath-pdf2svg: with an executable path or install one of the supported tools.
-          MSG
+          message = missing_tool_message(
+            "SVG",
+            record,
+            SVG_PRIORITY,
+            fallback_formats: "pdf|png",
+            attribute: ":latexmath-pdf2svg:"
+          )
           raise MissingToolError.new(record.id, message)
         end
 
@@ -43,9 +58,13 @@ module Asciidoctor
           record = detect_png_tool
           return record if record.available
 
-          message = <<~MSG.strip
-            Required PNG conversion tool not available. Tried: #{png_candidates.join(", ")}. Configure :latexmath-png-tool: with an executable path or install one of the supported tools.
-          MSG
+          message = missing_tool_message(
+            "PNG",
+            record,
+            PNG_PRIORITY,
+            fallback_formats: "svg|pdf",
+            attribute: ":latexmath-pdftoppm:"
+          )
           raise MissingToolError.new(record.id, message)
         end
 
@@ -221,11 +240,45 @@ module Asciidoctor
           PNG_PRIORITY.map(&:to_s)
         end
 
+        def missing_tool_message(kind, record, priority, fallback_formats:, attribute:)
+          tried = if priority.include?(record.id)
+            priority.map(&:to_s)
+          else
+            ([record.id.to_s] + priority.map(&:to_s)).uniq
+          end
+
+          base = "Required #{kind} conversion tool not available. Tried: #{tried.join(", ")}. Configure #{attribute} with an executable path or install one of the supported tools."
+
+          preferred = record.id.to_s
+          alternates = (priority.map(&:to_s) - [preferred]).uniq
+          alt_hint = if alternates.empty?
+            "install #{preferred} (preferred)"
+          else
+            available_alternates = alternates.select { |name| tool_presence_map[name.to_sym] }
+            if available_alternates.any?
+              "install #{preferred} (preferred) or keep using #{available_alternates.join("/")}"
+            else
+              "install #{preferred} (preferred) or install #{alternates.join("/")}"
+            end
+          end
+
+          hints = [alt_hint, "set :latexmath-format: #{fallback_formats}"]
+          "#{base}\nhint: #{hints.join("; ")}"
+        end
+
         def remember_record(record)
           return record unless record
 
           tool_presence_map[record.id] = record.available
           record
+        end
+
+        def summary_record(identifier)
+          command = identifier.to_s
+          self.class.lookup(identifier, command) do
+            path = find_executable(command)
+            ToolchainRecord.new(id: identifier, available: !path.nil?, path: path || command)
+          end
         end
 
         def canonical_engine_id(command)
@@ -251,6 +304,14 @@ module Asciidoctor
 
           def reset!
             @cache = {}
+            @summary_emitted = false
+          end
+
+          def emit_summary_once
+            return if @summary_emitted
+
+            yield
+            @summary_emitted = true
           end
         end
       end

@@ -19,6 +19,7 @@ end
 
 require_relative "support/document_helpers"
 require_relative "support/tool_stub_helpers"
+require_relative "support/capturing_logger"
 
 RSpec.configure do |config|
   config.disable_monkey_patching!

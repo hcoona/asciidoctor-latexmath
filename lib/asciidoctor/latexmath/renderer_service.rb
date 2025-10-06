@@ -309,6 +309,7 @@ module Asciidoctor
           log_artifact_path: log_artifact_path
         }
         tool_detector = context.fetch(:tool_detector)
+        tool_detector.emit_tool_summary
         tool_detector.record_engine(request.engine)
 
         if request.expression.content.include?("\\error")

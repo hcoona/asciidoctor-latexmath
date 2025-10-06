@@ -146,24 +146,43 @@ module Asciidoctor
       def infer_ppi(attrs, format)
         return nil unless format == :png
 
-        value = attrs["ppi"] || document.attr("latexmath-ppi") || DEFAULT_PPI
-        integer = Integer(value)
+        raw_value, subject = fetch_attribute_value(attrs, "ppi", "latexmath-ppi")
+        effective_value = value_or_default(raw_value, DEFAULT_PPI)
+
+        begin
+          integer = Integer(effective_value)
+        rescue ArgumentError, TypeError
+          raise_unsupported_attribute(subject, raw_value, supported: "integer between #{MIN_PPI} and #{MAX_PPI}",
+            hint: "set #{subject} to an integer between #{MIN_PPI} and #{MAX_PPI}")
+        end
+
         unless integer.between?(MIN_PPI, MAX_PPI)
-          raise InvalidAttributeError, "ppi #{integer} out of range (#{MIN_PPI}..#{MAX_PPI})"
+          raise_unsupported_attribute(subject, raw_value || integer,
+            supported: "integer between #{MIN_PPI} and #{MAX_PPI}",
+            hint: "set #{subject} between #{MIN_PPI} and #{MAX_PPI}")
         end
         integer
-      rescue ArgumentError
-        raise InvalidAttributeError, "ppi must be an integer"
       end
 
       def infer_timeout(attrs)
-        value = attrs["timeout"] || document.attr("latexmath-timeout") || DEFAULT_TIMEOUT
-        integer = Integer(value)
-        raise InvalidAttributeError, "timeout must be positive" unless integer.positive?
+        raw_value, subject = fetch_attribute_value(attrs, "timeout", "latexmath-timeout")
+        effective_value = value_or_default(raw_value, DEFAULT_TIMEOUT)
+
+        begin
+          integer = Integer(effective_value)
+        rescue ArgumentError, TypeError
+          raise_unsupported_attribute(subject, raw_value,
+            supported: "positive integer seconds",
+            hint: "set #{subject} to a positive integer")
+        end
+
+        unless integer.positive?
+          raise_unsupported_attribute(subject, raw_value || integer,
+            supported: "positive integer seconds",
+            hint: "set #{subject} to a positive integer")
+        end
 
         integer
-      rescue ArgumentError
-        raise InvalidAttributeError, "timeout must be an integer"
       end
 
       def infer_cachedir(attrs)
@@ -295,11 +314,19 @@ module Asciidoctor
       end
 
       def infer_on_error(attrs)
-        policy_name = attrs["on-error"] || document.attr("latexmath-on-error") || :log
-        ErrorHandling.policy(policy_name.to_sym)
-      rescue ArgumentError
-        logger&.warn { "latexmath: unknown on-error policy '#{policy_name}', falling back to log" }
-        ErrorHandling.policy(:log)
+        raw_value, subject = fetch_attribute_value(attrs, "on-error", "latexmath-on-error")
+        effective_value = value_or_default(raw_value, :log)
+        normalized = effective_value.to_s.strip
+        normalized = "log" if normalized.empty?
+
+        valid = %w[abort log]
+        if valid.include?(normalized.downcase)
+          ErrorHandling.policy(normalized.downcase.to_sym)
+        else
+          raise_unsupported_attribute(subject, raw_value,
+            supported: valid,
+            hint: "set #{subject} to one of [abort, log]")
+        end
       end
 
       def expand_path(path)
@@ -364,6 +391,46 @@ module Asciidoctor
         return false if %w[false no off 0].include?(normalized)
 
         nil
+      end
+
+      def fetch_attribute_value(attrs, element_key, document_key)
+        if attrs.key?(element_key)
+          return [attrs[element_key], element_key]
+        end
+
+        if document && (document_value = document.attr(document_key))
+          return [document_value, document_key]
+        end
+
+        [nil, element_key]
+      end
+
+      def value_or_default(raw_value, default_value)
+        return default_value if raw_value.nil?
+
+        if raw_value.respond_to?(:strip)
+          stripped = raw_value.strip
+          return default_value if stripped.empty?
+          stripped
+        else
+          raw_value
+        end
+      end
+
+      def raise_unsupported_attribute(subject, raw_value, supported:, hint:)
+        raise UnsupportedValueError.new(
+          category: :attribute,
+          subject: subject,
+          value: normalize_error_value(raw_value),
+          supported: supported,
+          hint: hint
+        )
+      end
+
+      def normalize_error_value(raw_value)
+        return raw_value if raw_value.nil?
+
+        raw_value.respond_to?(:strip) ? raw_value.strip : raw_value
       end
 
       def set_internal_document_attr(name, value)

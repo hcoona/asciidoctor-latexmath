@@ -21,6 +21,45 @@ module Asciidoctor
 
     class InvalidAttributeError < LatexmathError; end
 
+    class UnsupportedValueError < InvalidAttributeError
+      attr_reader :category, :subject, :value, :supported, :hints
+
+      def initialize(category:, subject:, value:, supported:, hint: nil)
+        @category = category
+        @subject = subject
+        @value = value
+        @supported = supported
+        @hints = Array(hint).compact
+        super(build_message)
+      end
+
+      private
+
+      def build_message
+        descriptor = subject ? "#{subject}=#{present_value}" : present_value
+        base = "unsupported #{category}: '#{descriptor}' (supported: #{formatted_supported})"
+        hints.empty? ? base : "#{base}\nhint: #{formatted_hints}"
+      end
+
+      def present_value
+        (value.nil? || value.to_s.empty?) ? "<empty>" : value.to_s
+      end
+
+      def formatted_supported
+        case supported
+        when Array
+          values = supported.map { |entry| entry.to_s.strip }.reject(&:empty?)
+          values.sort_by { |entry| entry.downcase }.join(", ")
+        else
+          supported.to_s
+        end
+      end
+
+      def formatted_hints
+        hints.map(&:to_s).reject(&:empty?).join("; ")
+      end
+    end
+
     class TargetConflictError < LatexmathError; end
 
     class RenderTimeoutError < LatexmathError; end
