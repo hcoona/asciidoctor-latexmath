@@ -79,7 +79,7 @@ package "Asciidoctor::Latexmath" {
     +engine_preference() : Symbol
     +preamble() : String
     +ppi() : Float
-    +inline_data_uri?() : Boolean
+    +error_policy() : Symbol
   }
 
   class RendererBuilder {
@@ -239,7 +239,7 @@ package "Asciidoctor::Latexmath" {
 2. **渲染器选择**：`RendererBuilder` 基于格式选择 *固定阶段列表* 生成 `CompositeRenderer`；`CachingRenderer` 包裹结果，先查 `DiskCache` 再决定是否执行。
 3. **管线执行**：`CompositeRenderer` 顺序执行管线步骤，例如 `PdflatexRenderer` → `Pdf2SvgRenderer` 或 `PdflatexRenderer` → `MagickRenderer`。每一步产生的文件通过临时目录管理，符合 `latexmath-keep-artifacts` 策略。
 4. **产物处理**：渲染成功后写入 `imagesoutdir`，生成 JSON 元数据（尺寸、checksum、生成时间），不记录命令版本；需要时保留 `.tex`/`.log`。
-5. **集成返回**：Processor 构造图像块或内联节点；v1 仅文件引用（data URI 行为由核心 `:data-uri:` 决定，扩展不主动生成 data: URL）。
+5. **集成返回**：Processor 构造图像块或内联节点；v1 仅返回文件引用，data URI 行为由核心 `:data-uri:` 决定。
 
 ## 组件职责
 
@@ -248,7 +248,7 @@ package "Asciidoctor::Latexmath" {
 - 与 Asciidoctor logger 集成，初始化统计指标（渲染次数、缓存命中率）。
 
 ### Layer 1 — Configuration & RendererBuilder
-- `Configuration.from_document` 读取文档级属性，计算默认格式、缓存目录、artifact 目录及 inline data URI 策略。
+- `Configuration.from_document` 读取文档级属性，计算默认格式、缓存目录、artifact 目录及渲染错误策略。
 - `RendererBuilder` 负责：
   - 固定阶段装配：format → 预定义阶段序列（如 svg: [Pdflatex, Pdf→Svg]）。
   - 阶段序列调整需伴随 ext_version bump 与测试更新。
@@ -256,7 +256,7 @@ package "Asciidoctor::Latexmath" {
 
 ### Layer 2 — Processors
 - `LatexmathBlockProcessor`：构造 `Asciidoctor::Block` 结果，支持 `[%nocache]`、`options="keep-artifacts"` 等开关。
-- `LatexmathInlineMacroProcessor`：输出内联节点，必要时将目标资源封装成 data URI。
+- `LatexmathInlineMacroProcessor`：输出内联节点，交由 Asciidoctor 核心决定是否生成 data URI。
 - 不实现 BlockMacroProcessor；`latexmath::` 语法被忽略或记录一次警告（与 Clarifications 一致）。
 - 两类 Processor 均不使用 `TreeProcessor`，符合约束。
 
@@ -278,7 +278,7 @@ package "Asciidoctor::Latexmath" {
 
 ## 缓存与元数据
 
--- `DiskCache` 以内容寻址的目录结构存储：
+- `DiskCache` 以内容寻址的目录结构存储：
   - `cache/<digest>/artifact`：最终文件；
   - `cache/<digest>/metadata.json`：`{version,key,format,content_hash,preamble_hash,ppi,entry_type,created_at,checksum,size_bytes}`。
 - 支持：
@@ -289,20 +289,41 @@ package "Asciidoctor::Latexmath" {
 
 ### 缓存键示意图
 
-缓存键通过“字段 + 管道”串联后计算 sha1 哈希，字段顺序固定且不包含工具链名称。下图展示了逻辑拼装结构：
+缓存键通过固定顺序字段拼接后计算 SHA256 哈希，完全排除引擎与转换工具信息。下图展示了逻辑拼装结构：
 
-```text
-+--------------+---------------+--------+----------------+-----+------------+
-| ext_version  | content_hash  | format | preamble_hash  | ppi | entry_type |
-+--------------+---------------+--------+----------------+-----+------------+
-        \_____________ 按顺序连接为: __________________/
-                      ext_version|content_hash|format|preamble_hash|ppi|entry_type
-                             ↓
-                    SHA1(key_string) => cache/<digest>/
+```plantuml
+@startuml CacheKeyFlow
+left to right direction
+skinparam rectangle {
+  BackgroundColor #F5F5F5
+  BorderColor #616161
+  FontName "monospaced"
+}
+skinparam arrowColor #5C6BC0
+
+rectangle "ext_version" as ext
+rectangle "content_hash" as content
+rectangle "format" as format
+rectangle "preamble_hash" as preamble
+rectangle "ppi (or '-')" as ppi
+rectangle "entry_type" as entry
+rectangle "join with \\n" as join
+rectangle "SHA256" as hasher
+rectangle "digest (hex)" as digest
+
+ext --> join
+content --> join
+format --> join
+preamble --> join
+ppi --> join
+entry --> join
+join --> hasher
+hasher --> digest
+@enduml
 ```
 
-- `ext_version`：当管线阶段列表或磁盘格式发生兼容性变化时递增。
-- `content_hash`：基于规范化 LaTeX 源文本。
+- `ext_version`：当管线阶段列表、缓存目录结构或兼容性约束变化时递增。
+- `content_hash`：基于规范化 LaTeX 源文本（去除换行差异等）。
 - `format`：输出格式，`svg` / `png` / `pdf`。
 - `preamble_hash`：文档与元素级 preamble 内容计算的哈希；无 preamble 记为 `-`。
 - `ppi`：仅 PNG 场景参与（非 PNG 记为 `-`）；确保 DPI 不污染其它格式。
@@ -325,14 +346,14 @@ package "Asciidoctor::Latexmath" {
 | `latexmath-pdf2svg` / `pdf2svg=` | 文档 / 元素 | RequestFactory | Pdf2SvgRenderer、DvisvgmRenderer |
 | `latexmath-png-tool` / `png-tool=` | 文档 / 元素 | RequestFactory | PdftoppmRenderer、MagickRenderer、GhostscriptRenderer |
 | `latexmath-ppi` / `ppi=` | 文档 / 元素 | RequestFactory | PNG 渲染器 |
-| 内联 `inline_data_uri`（待扩展） | 文档 | Configuration | LatexmathInlineMacroProcessor |
+| `latexmath-on-error` / `on-error=` | 文档 / 元素 | Configuration / Processors | ErrorPlaceholderBuilder、RendererPipeline |
 
 所有属性均支持 CLI `-a` 覆写，与 asciidoctor-diagram 的属性模型保持一致。
 
 ## 错误处理与可观测性
 
 - 每次命令执行都捕捉 stdout/stderr，失败时抛出包含命令、退出码、日志路径的异常；日志建议写入 `metadata.json`。
-- 提供统计接口：渲染耗时、缓存命中率、命令可用性。可通过 Asciidoctor 的 logger 输出 INFO / DEBUG 日志。
+- 提供统计接口：渲染耗时、缓存命中率、命令可用性，并在 INFO 级别输出单行 `latexmath stats: renders=… cache_hits=… avg_render_ms=… avg_hit_ms=…`。
 - 内建超时（默认 120s，可后续属性化）。超时后清理临时目录并提示用户调整工具链。
 - `keep-artifacts` 打开时，将 `.tex`、`.log`、中间 PDF 复制到 artifacts 目录并在日志中提示路径。
 

@@ -83,16 +83,16 @@ All contract & integration specs MUST exist and FAIL before dependent implementa
 - [X] T051 [P] Performance smoke spec: `spec/performance/render_perf_spec.rb` (skip if tools missing) depends: T042,T046.
 - [X] T052 [P] Determinism spec: `spec/integration/determinism_spec.rb` (two runs identical checksum + no re-render) depends: T038,T050.
 - [X] T053 [P] Statistics suppression & rounding spec (make T010/T046 green) `spec/statistics/statistics_behavior_spec.rb` depends: T046.
-- [ ] T054 README attributes & usage table (FR-027) depends: T044,T046,T047.
-- [ ] T055 Update DESIGN.md remove BlockMacro references; add cache key diagram depends: T054.
-- [ ] T056 Add examples: `examples/block_svg.adoc`, `examples/png_cached.adoc`, `examples/inline_mix.adoc`, `examples/error_placeholder.adoc` depends: T045,T041.
-- [ ] T057 Add CHANGELOG entry & set version 0.1.0 depends: T054–T056.
-- [ ] T058 Release rake tasks + gem build verification (reproducibility spot-check) depends: T057.
-- [ ] T059 [P] Performance baseline doc `specs/001-asciidoctor-latexmath-asciidoctor/performance-baseline.md` (capture p50/p95 cold/warm) depends: T051.
-- [ ] T060 Final verification checklist (run suite twice; capture stats line; ensure no duplicate stats output) depends: T051–T058.
+- [X] T054 README attributes & usage table (FR-027) depends: T044,T046,T047.
+- [X] T055 Update DESIGN.md remove BlockMacro references; add cache key diagram depends: T054.
+- [X] T056 Add examples: `examples/block_svg.adoc`, `examples/png_cached.adoc`, `examples/inline_mix.adoc`, `examples/error_placeholder.adoc` depends: T045,T041.
+- [X] T057 Add CHANGELOG entry & set version 0.1.0 depends: T054–T056.
+- [X] T058 Release rake tasks + gem build verification (reproducibility spot-check) depends: T057.
+- [X] T059 [P] Performance baseline doc `specs/001-asciidoctor-latexmath-asciidoctor/performance-baseline.md` (capture p50/p95 cold/warm) depends: T051.
+- [X] T060 Final verification checklist (run suite twice; capture stats line; ensure no duplicate stats output) depends: T051–T058.
 
 ## Phase 3.7: Additional Coverage (Remediation A3–A5, U4, C1–C5, C7–C9)
-- [ ] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
+- [X] T061 SVG tool priority spec: `spec/integration/svg_tool_priority_spec.rb` (dvisvgm chosen when both present; logs `latexmath.svg.tool=dvisvgm`; simulate only pdf2svg present chooses pdf2svg; simulate none → FR-004 error) (FR-047).
 - [ ] T062 Engine precedence & normalization spec: `spec/integration/engine_precedence_spec.rb` (element > doc > global > default; adds flags if missing; no fallback to other engine on missing executable) (FR-049/050 + A5)。
 - [ ] T063 Hash collision avoidance spec: `spec/cache/hash_collision_spec.rb` (simulate 16-char prefix collision → 升级为 32-char 基名无数字后缀；缓存键仍用全 64；可选 stub 二次冲突) (FR-010/011 新策略)。
 - [ ] T064 Unsupported attribute values error spec: `spec/integration/unsupported_attribute_values_spec.rb` (illegal ppi, timeout non-integer, on-error invalid → actionable errors per FR-019) (FR-018/034/045/019)。

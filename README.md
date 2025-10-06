@@ -4,19 +4,30 @@ Offline `latexmath` rendering for Asciidoctor documents powered by your local La
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [How It Works](#how-it-works)
-- [Output Formats](#output-formats)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Document Attributes](#document-attributes)
-- [Why asciidoctor-latexmath?](#why-asciidoctor-latexmath)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [Author](#author)
-- [License](#license)
+- [asciidoctor-latexmath](#asciidoctor-latexmath)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Features](#features)
+  - [Security Note](#security-note)
+  - [How It Works](#how-it-works)
+  - [Output Formats](#output-formats)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+    - [Using RubyGems](#using-rubygems)
+    - [Using Bundler](#using-bundler)
+    - [From Source](#from-source)
+  - [Quick Start](#quick-start)
+  - [Document Attributes](#document-attributes)
+    - [Document-level configuration](#document-level-configuration)
+    - [Element attributes \& options](#element-attributes--options)
+  - [Caching](#caching)
+  - [Why asciidoctor-latexmath?](#why-asciidoctor-latexmath)
+  - [Accessibility \& Semantics](#accessibility--semantics)
+  - [Statistics Line](#statistics-line)
+  - [Troubleshooting](#troubleshooting)
+  - [Contributing](#contributing)
+  - [Author](#author)
+  - [License](#license)
 
 ## Overview
 
@@ -28,7 +39,7 @@ Offline `latexmath` rendering for Asciidoctor documents powered by your local La
 - **LaTeX fidelity** – relies on the same `pdflatex`, `xelatex`, or `lualatex` tooling used for high-quality print workflows.
 - **Multiple output formats** – generate PDF, SVG, or PNG assets to match your target backend.
 - **Drop-in integration** – register the extension once and keep authoring with the familiar `latexmath` syntax.
-- **Intelligent caching** – reuse previously rendered formulas (including inline data URIs) to keep iterative builds fast.
+- **Intelligent caching** – reuse previously rendered block and inline formulas; cache hits skip the LaTeX toolchain entirely.
 
 ## Security Note
 
@@ -141,46 +152,49 @@ The extension replaces both expressions with rendered images that match the form
 
 ### Document-level configuration
 
-| Attribute | Description | Values | Default |
-| --------- | ----------- | ------ | ------- |
-| `stem` | Enables global stem support; set to `latexmath` (or `tex`) so bare `stem:[...]` calls delegate to this extension. | `latexmath`, `tex` | *(not set)* |
-| `latexmath-format` | Desired output format for every rendered asset. | `svg`, `pdf`, `png` | `svg` |
-| `latexmath-preamble` | Additional LaTeX preamble injected before `\begin{document}`. Element-level `preamble=` replaces the document value. | Raw LaTeX | *(empty)* |
-| `latexmath-ppi` | Pixels-per-inch used when producing PNGs. Ignored for SVG/PDF. | Integer 72–600 | `300` |
-| `latexmath-timeout` | Maximum wall-clock time (seconds) for each expression before the renderer aborts. | Positive integer | `120` |
-| `latexmath-cache` | Toggle the on-disk cache. Set to `false` to force regeneration. | `true`, `false` | `true` |
-| `latexmath-cachedir` | Directory that stores cached artifacts and metadata (relative paths resolved from `outdir`). | Path | `<outdir>/.asciidoctor/latexmath` |
-| `latexmath-keep-artifacts` | Retain intermediate `.tex`, `.log`, and PDF files for debugging. | `true`, `false` | `false` |
-| `latexmath-artifacts-dir` | Destination for kept artifacts when `latexmath-keep-artifacts` is enabled. | Path | `<cachedir>/artifacts` |
-| `latexmath-pdflatex` / `pdflatex` | Document-wide LaTeX engine command. Element attributes can override per expression. | `pdflatex`, `xelatex`, `lualatex`, `tectonic`, or absolute path | `pdflatex` |
-| `latexmath-svg-tool` / `latexmath-pdf2svg` | Preferred SVG converter (`dvisvgm` or `pdf2svg`) and optional explicit path. | Tool id / filesystem path | Auto-detect (`dvisvgm` first) |
-| `latexmath-png-tool` / `latexmath-pdftoppm` | Preferred PNG conversion tool and optional explicit path. | `pdftoppm`, `magick`, `gs`, or path | Auto-detect (`pdftoppm`, `magick`, `gs`) |
-| `latexmath-on-error` | Rendering failure policy. `log` inserts an HTML placeholder and continues; `abort` bubbles the error to Asciidoctor. | `log`, `abort` | `log` |
+| Attribute | Aliases / CLI | Description | Values | Default |
+| --------- | ------------- | ----------- | ------ | ------- |
+| `stem` | `-a stem=latexmath` | Enables global stem support so bare `stem:[...]` calls delegate to this extension. | `latexmath`, `tex` | *(not set)* |
+| `latexmath-format` | `-a latexmath-format=svg` | Desired output format for every rendered asset. | `svg`, `pdf`, `png` | `svg` |
+| `latexmath-preamble` | `-a latexmath-preamble=...` | Additional LaTeX preamble injected before `\begin{document}`. Per-expression `preamble=` overrides the document value. | Raw LaTeX | *(empty)* |
+| `latexmath-ppi` | `-a latexmath-ppi=300` | Pixels-per-inch for PNG renders. Ignored for SVG/PDF. | Integer 72–600 | `300` |
+| `latexmath-timeout` | `-a latexmath-timeout=120` | Maximum wall-clock time (seconds) each expression may consume before the renderer aborts and raises/places a placeholder. | Positive integer | `120` |
+| `latexmath-cache` | `-a latexmath-cache=false` | Toggle the on-disk cache. `false` forces regeneration without persisting results. | `true`, `false` | `true` |
+| `latexmath-cachedir` | `-a latexmath-cachedir=build/.cache/latexmath` | Directory that stores cached artifacts and metadata (resolved from `outdir`). | Path | `<outdir>/.asciidoctor/latexmath` |
+| `latexmath-keep-artifacts` | `-a latexmath-keep-artifacts=true` | Retain intermediate `.tex`, `.log`, and PDF files for debugging. | `true`, `false` | `false` |
+| `latexmath-artifacts-dir` | `-a latexmath-artifacts-dir=build/latexmath-artifacts` | Destination for kept artifacts when `latexmath-keep-artifacts` is enabled. | Path | `<cachedir>/artifacts` |
+| `pdflatex` / `latexmath-pdflatex` | `-a pdflatex=tectonic` | Document-wide LaTeX engine command. Elements can override with `pdflatex=`. | `pdflatex`, `xelatex`, `lualatex`, `tectonic`, or absolute path | `pdflatex` |
+| `latexmath-svg-tool` | `-a latexmath-svg-tool=pdf2svg` | Preferred SVG converter (`dvisvgm` or `pdf2svg`). Paths are allowed. | Tool id or absolute path | auto-detect (`dvisvgm` then `pdf2svg`) |
+| `latexmath-pdf2svg` | `-a latexmath-pdf2svg=/opt/bin/dvisvgm` | Legacy alias for the SVG converter attribute. Logs a one-time info message then normalizes to `latexmath-svg-tool`. | Path | *(same as above)* |
+| `latexmath-png-tool` | `-a latexmath-png-tool=magick` | Preferred PNG conversion tool. | `pdftoppm`, `magick`, `gs`, or path | auto-detect (`pdftoppm`, `magick`, `gs`) |
+| `latexmath-pdftoppm` | `-a latexmath-pdftoppm=/opt/bin/pdftoppm` | Legacy alias for PNG converter selection. Logs a one-time info message. | Path | *(same as above)* |
+| `latexmath-on-error` | `-a latexmath-on-error=abort` | Rendering failure policy. `log` inserts an HTML placeholder, `abort` stops the build. | `log`, `abort` | `log` |
 
-> Deprecated alias: `latexmath-cache-dir` is still accepted (logs a one-time info message) but you should prefer `latexmath-cachedir`.
+> Deprecated alias: `latexmath-cache-dir` / `cache-dir` is still accepted (emits a one-time INFO log) but you should prefer `latexmath-cachedir` / `cachedir`.
 
 ### Element attributes & options
 
 | Attribute / Option | Applies To | Description | Values / Notes |
 | ------------------ | ---------- | ----------- | -------------- |
-| `format` (or second positional attribute) | Block | Overrides output format for this expression only. | `svg`, `pdf`, `png` |
+| `target=` (first positional attribute) | Block | Explicit output basename (may include subdirectories). | Filename |
+| `format` (second positional attribute) | Block | Overrides output format for this expression only. | `svg`, `pdf`, `png` |
+| `format=` | Block / Inline | Keyword attribute equivalent to the positional format override. | `svg`, `pdf`, `png` |
 | `preamble=` | Block / Inline | Replaces the document-level preamble for this expression. | Raw LaTeX |
 | `ppi=` | Block / Inline | Per-expression PNG density (only used when `format=png`). | Integer 72–600 |
 | `timeout=` | Block / Inline | Overrides the timeout for the current expression. | Positive integer |
 | `cache=` | Block / Inline | Enables/disables cache usage for the expression. | `true`, `false` |
 | `%nocache` option | Block | Shortcut that skips both cache read and write. | Use as `[latexmath%nocache]` |
-| `keep-artifacts` option | Block | Preserve intermediate files for this expression. | Use as `[latexmath, options="keep-artifacts"]` |
+| `keep-artifacts` option | Block | Preserve intermediate files for this expression. | `[latexmath, options="keep-artifacts"]` |
 | `artifacts-dir=` / `artifactsdir=` | Block / Inline | Custom artifact directory when `keep-artifacts` is active. | Path |
-| `cachedir=` | Block / Inline | Stores/render cache for this expression in a custom directory. | Path |
-| `pdflatex=` | Block / Inline | Per-expression engine command (allows passing flags or absolute paths). | Command string |
-| `latexmath-pdf2svg=` / `latexmath-svg-tool=` | Block / Inline | Choose a specific SVG converter or executable path. | Tool id / path |
+| `cachedir=` / `cache-dir=` | Block / Inline | Store/read cache entries for this expression in a custom directory. Logs a deprecation warning when `cache-dir=` is used. | Path |
+| `pdflatex=` | Block / Inline | Per-expression engine command (allows flags or absolute paths). | Command string |
+| `latexmath-svg-tool=` / `latexmath-pdf2svg=` | Block / Inline | Choose a specific SVG converter or executable path. | Tool id / path |
 | `latexmath-png-tool=` / `latexmath-pdftoppm=` | Block / Inline | Choose a specific PNG converter or executable path. | Tool id / path |
 | `on-error=` | Block / Inline | Override the error handling policy locally. | `log`, `abort` |
-| `target=` (first positional attribute) | Block | Explicit output basename (may include subdirectories). | Filename |
+| `role=` | Block / Inline | Adds additional roles/CSS classes; the extension always reapplies the `math` role and accessible markup. | Space-separated roles |
 | `align=` | Block | Aligns the enclosing block (`left`, `center`, `right`). | CSS alignment keyword |
-| `role=` | Block / Inline | Adds additional roles/CSS classes; the extension always re-adds `math`. | Space-separated roles |
 
-Inline macros support a subset of the same attributes (`format`, `ppi`, `timeout`, `cache`, `pdflatex`, converter overrides, `on-error`, `artifacts-dir`).
+Inline macros support the same keyword attributes except for positional `target=`/`format`. Attributes follow asciidoctor-diagram precedence: element attribute → element options → document attribute → default.
 
 Set attributes via the CLI (`-a latexmath-format=png`) or inside the document header. Positional attributes follow the asciidoctor-diagram convention: `[latexmath, basename, format]`.
 
@@ -188,7 +202,7 @@ All generated images respect Asciidoctor's standard image directory rules. Use `
 
 ## Caching
 
-The renderer persists every successful compilation so repeated conversions can reuse the existing SVG/PNG/PDF payloads without invoking your LaTeX toolchain again. Cache entries (stable ordering) comprise: extension version, normalized content hash, output format, preamble hash, PPI (raster only), and entry type (block|inline) — intentionally excluding engine / converter tool identity (FR-011, P5). Switching `pdflatex`→`xelatex` with other factors constant reuses the same cache entry. Inline rendering via `-a latexmath-inline` reuses the cached inline markup; enabling `-a data-uri` does not invalidate cached images.
+The renderer persists every successful compilation so repeated conversions can reuse the existing SVG/PNG/PDF payloads without invoking your LaTeX toolchain again. Cache entries hash the following ordered fields with SHA256: extension version, normalized content hash, output format, preamble hash, PPI (PNG only, otherwise `-`), and entry type (`block` | `inline`). Delimiter changes, engine switches, or tool swaps do **not** affect the cache key (FR-011 / P5), so switching `pdflatex` → `xelatex` with other factors constant reuses the same cache entry. Inline rendering via `-a latexmath-inline` reuses the cached inline markup; enabling `-a data-uri` does not invalidate cached images.
 
 By default, cache files live under `<outdir>/.asciidoctor/latexmath`. Override this location with `-a latexmath-cache-dir=path/to/cache` or disable caching altogether with `-a latexmath-cache=false` when you need a clean rebuild. Removing the cache directory forces the next run to regenerate every formula.
 
@@ -196,10 +210,25 @@ By default, cache files live under `<outdir>/.asciidoctor/latexmath`. Override t
 
 | Feature | asciidoctor-latexmath | asciidoctor-mathematical |
 | ------- | --------------------- | ------------------------- |
-| Input types | `latexmath` only | `latexmath` and `stem` |
-| Rendering backend | Local LaTeX engine (`pdflatex`/`xelatex`/`lualatex`/`tectonic`) | Native Mathematical library |
+| Input types | `latexmath` (block + inline) | `latexmath` and `stem` |
+| Rendering backend | Local LaTeX engine (`pdflatex` / `xelatex` / `lualatex` / `tectonic`) | Native Mathematical library |
 | Output formats | PDF, SVG, PNG | PNG (default) / SVG |
+| Accessibility defaults | `role="math"` + `alt` attributes derived from source | Requires manual markup |
 | External dependencies | Leverages standard LaTeX installation | Requires the Mathematical gem and Cairo stack |
+
+## Accessibility & Semantics
+
+Rendered output keeps formulas accessible by emitting `<img>` elements with `role="math"`, `alt` text set to the raw LaTeX snippet, and a `data-latex-original` attribute for tooling. Blocks inherit the usual Asciidoctor figure roles, while inline expressions blend into text content without breaking line height.
+
+## Statistics Line
+
+When logging at INFO (the default), the extension prints a single summary line per run:
+
+```
+latexmath stats: renders=<int> cache_hits=<int> avg_render_ms=<int> avg_hit_ms=<int>
+```
+
+Fields are fixed in name and order (FR-022 / FR-035). Use this line to monitor warm-cache behaviour in CI or to flag unexpected cache misses.
 
 Choose `asciidoctor-latexmath` when you already depend on a LaTeX distribution and want fully offline builds with minimal additional dependencies.
 

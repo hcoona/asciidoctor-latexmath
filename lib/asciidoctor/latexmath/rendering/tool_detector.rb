@@ -21,12 +21,14 @@ module Asciidoctor
           @request = request
           @raw_attributes = raw_attributes || {}
           @tool_presence_map = {}
+          @svg_log_emitted = false
         end
 
         def ensure_svg_tool!
           return nil unless request.format == :svg
 
           record = detect_svg_tool
+          log_svg_tool_selection(record)
           return record if record.available
 
           message = <<~MSG.strip
@@ -63,6 +65,14 @@ module Asciidoctor
         attr_reader :request
         attr_reader :raw_attributes
         attr_reader :tool_presence_map
+
+        def log_svg_tool_selection(record)
+          return if @svg_log_emitted
+
+          selected = record&.available ? record.id.to_s : "missing"
+          Asciidoctor::LoggerManager.logger&.info { "latexmath.svg.tool=#{selected}" }
+          @svg_log_emitted = true
+        end
 
         def detect_svg_tool
           if (explicit = explicit_svg_path)
