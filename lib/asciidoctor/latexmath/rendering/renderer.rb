@@ -17,6 +17,16 @@ module Asciidoctor
         def render(_request, _context)
           raise NotImplementedError, "Renderer subclasses must implement #render"
         end
+
+        private
+
+        def truncate_output(output, limit = 500)
+          return "" unless output
+
+          return output if output.length <= limit
+
+          "#{output[0, limit]}..."
+        end
       end
     end
   end

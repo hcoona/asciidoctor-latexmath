@@ -76,14 +76,6 @@ module Asciidoctor
 
           nil
         end
-
-        def truncate_output(output)
-          return "" unless output
-
-          return output if output.length <= 500
-
-          "#{output[0, 500]}..."
-        end
       end
     end
   end
