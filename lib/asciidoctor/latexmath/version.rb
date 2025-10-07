@@ -6,6 +6,6 @@
 
 module Asciidoctor
   module Latexmath
-    VERSION = "0.1.0"
+    VERSION = "2.0.0-alpha.1"
   end
 end
