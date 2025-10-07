@@ -25,6 +25,8 @@ module Asciidoctor
           return previous if request.format != :svg && previous
           return pdf_path unless request.format == :svg
 
+          # `ensure_svg_tool!` raises MissingToolError when no converter is available;
+          # allow it to bubble so upstream handling can surface detailed hints.
           record = context.fetch(:tool_detector).ensure_svg_tool!
           artifact_dir = context.fetch(:artifact_dir)
           FileUtils.mkdir_p(artifact_dir)
