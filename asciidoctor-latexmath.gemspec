@@ -21,7 +21,7 @@ gemspec = Gem::Specification.new do |spec|
   spec.homepage = "https://github.com/hcoona/asciidoctor-latexmath#readme"
   spec.license = "LGPL-3.0-or-later WITH LGPL-3.0-linking-exception"
 
-  spec.required_ruby_version = Gem::Requirement.new(">= 3.1")
+  spec.required_ruby_version = Gem::Requirement.new(">= 3.2")
 
   spec.metadata = {
     "homepage_uri" => spec.homepage,
