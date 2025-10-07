@@ -25,7 +25,7 @@
 | 阶段 | 步骤 | 默认命令 | 典型输出 | 关键属性 |
 | --- | --- | --- | --- | --- |
 | 全局控制 | 解析 Asciidoctor 属性、决定缓存策略与输出格式 | *(无)* | *(配置预处理)* | `stem`, `latexmath-format`, `latexmath-cache`, `latexmath-cachedir` |
-| 阶段一 | 生成临时 `.tex` 文档 | *(模板生成)* | `.tex` | `latexmath-preamble`, `latexmath-keep-artifacts`, `latexmath-artifacts-dir` |
+| 阶段一 | 生成临时 `.tex` 文档 | *(模板生成)* | `.tex` | `latexmath-preamble`, `latexmath-fontsize`, `latexmath-keep-artifacts`, `latexmath-artifacts-dir` |
 | 阶段二 | 调用 LaTeX 引擎编译 | `pdflatex` | `.pdf` | `pdflatex`（可指向 `xelatex`/`lualatex`/`tectonic` 等） |
 | 阶段三（A） | 直接输出 PDF | *(跳过额外命令)* | `.pdf` | `latexmath-format=pdf`、块/内联 `format=pdf` |
 | 阶段三（B） | PDF → SVG | `dvisvgm` | `.svg` | `latexmath-pdf2svg`, 元素级 `pdf2svg=` |
@@ -49,6 +49,7 @@
 | 属性 | 文档级语法 | 元素级覆写 | 默认值 | 作用说明 | 关联产物 |
 | --- | --- | --- | --- | --- | --- |
 | `latexmath-preamble` | `:latexmath-preamble: \usepackage{bm}` | `[latexmath, preamble="\\usepackage{bm}"]` | *(空)* | 为生成的独立 `.tex` 文档追加前导宏包或自定义命令。 | 影响 `.tex` 输入 |
+| `latexmath-fontsize` | `:latexmath-fontsize: 12pt` | `[latexmath, fontsize=10pt]` | `12pt` | 设置 `\documentclass` 的字体尺寸选项（如 10pt、12pt）。 | 影响 `.tex` 输入 |
 | `latexmath-keep-artifacts` | `:latexmath-keep-artifacts: true` | `[latexmath, keep-artifacts=true]` / `[%keep-artifacts]` | `false` | 控制是否保留 `.tex`、`.log`、中间 PDF 等文件，便于调试。 | `.tex`、`.log`、临时 `.pdf` |
 | `latexmath-artifacts-dir` | `:latexmath-artifacts-dir: tmp/latexmath` | `[latexmath, artifacts-dir=tmp/scratch]` | `imagesoutdir`（或文档目录） | 当保留产物时指定保存路径，可使用相对或绝对路径。 | 文件系统 |
 
@@ -119,6 +120,7 @@
 :stem: latexmath
 :latexmath-format: svg
 :latexmath-preamble: \usepackage{bm}
+:latexmath-fontsize: 11pt
 
 [latexmath, einstein-eq, png, pdflatex=tectonic, ppi=200, options="keep-artifacts"]
 +++

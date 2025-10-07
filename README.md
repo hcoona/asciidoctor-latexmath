@@ -157,6 +157,7 @@ The extension replaces both expressions with rendered images that match the form
 | `stem` | `-a stem=latexmath` | Enables global stem support so bare `stem:[...]` calls delegate to this extension. | `latexmath`, `tex` | *(not set)* |
 | `latexmath-format` | `-a latexmath-format=svg` | Desired output format for every rendered asset. | `svg`, `pdf`, `png` | `svg` |
 | `latexmath-preamble` | `-a latexmath-preamble=...` | Additional LaTeX preamble injected before `\begin{document}`. Per-expression `preamble=` overrides the document value. | Raw LaTeX | *(empty)* |
+| `latexmath-fontsize` | `-a latexmath-fontsize=12pt` | Appends a font-size option to the standalone `\documentclass`. Expressions can override with `fontsize=`. | Values ending with `pt` (e.g., `10pt`, `12pt`) | `12pt` |
 | `latexmath-ppi` | `-a latexmath-ppi=300` | Pixels-per-inch for PNG renders. Ignored for SVG/PDF. | Integer 72–600 | `300` |
 | `latexmath-timeout` | `-a latexmath-timeout=120` | Maximum wall-clock time (seconds) each expression may consume before the renderer aborts and raises/places a placeholder. | Positive integer | `120` |
 | `latexmath-cache` | `-a latexmath-cache=false` | Toggle the on-disk cache. `false` forces regeneration without persisting results. | `true`, `false` | `true` |
@@ -180,6 +181,7 @@ The extension replaces both expressions with rendered images that match the form
 | `format` (second positional attribute) | Block | Overrides output format for this expression only. | `svg`, `pdf`, `png` |
 | `format=` | Block / Inline | Keyword attribute equivalent to the positional format override. | `svg`, `pdf`, `png` |
 | `preamble=` | Block / Inline | Replaces the document-level preamble for this expression. | Raw LaTeX |
+| `fontsize=` | Block / Inline | Overrides the `\documentclass` font-size option for this expression. | Values ending with `pt` (e.g., `10pt`, `12pt`) |
 | `ppi=` | Block / Inline | Per-expression PNG density (only used when `format=png`). | Integer 72–600 |
 | `timeout=` | Block / Inline | Overrides the timeout for the current expression. | Positive integer |
 | `cache=` | Block / Inline | Enables/disables cache usage for the expression. | `true`, `false` |
@@ -202,7 +204,7 @@ All generated images respect Asciidoctor's standard image directory rules. Use `
 
 ## Caching
 
-The renderer persists every successful compilation so repeated conversions can reuse the existing SVG/PNG/PDF payloads without invoking your LaTeX toolchain again. Cache entries hash the following ordered fields with SHA256: extension version, normalized content hash, output format, preamble hash, PPI (PNG only, otherwise `-`), and entry type (`block` | `inline`). Delimiter changes, engine switches, or tool swaps do **not** affect the cache key (FR-011 / P5), so switching `pdflatex` → `xelatex` with other factors constant reuses the same cache entry. Inline rendering via `-a latexmath-inline` reuses the cached inline markup; enabling `-a data-uri` does not invalidate cached images.
+The renderer persists every successful compilation so repeated conversions can reuse the existing SVG/PNG/PDF payloads without invoking your LaTeX toolchain again. Cache entries hash the following ordered fields with SHA256: extension version, normalized content hash, output format, preamble hash, font-size hash, PPI (PNG only, otherwise `-`), and entry type (`block` | `inline`). Delimiter changes, engine switches, or tool swaps do **not** affect the cache key (FR-011 / P5), so switching `pdflatex` → `xelatex` with other factors constant reuses the same cache entry. Inline rendering via `-a latexmath-inline` reuses the cached inline markup; enabling `-a data-uri` does not invalidate cached images.
 
 By default, cache files live under `<outdir>/.asciidoctor/latexmath`. Override this location with `-a latexmath-cache-dir=path/to/cache` or disable caching altogether with `-a latexmath-cache=false` when you need a clean rebuild. Removing the cache directory forces the next run to regenerate every formula.
 

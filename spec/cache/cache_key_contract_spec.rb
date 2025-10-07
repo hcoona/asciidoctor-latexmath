@@ -10,6 +10,7 @@ RSpec.describe Asciidoctor::Latexmath::Cache::CacheKey do
       content_hash: "abc123",
       format: :svg,
       preamble_hash: "def456",
+      fontsize_hash: "font789",
       ppi: "-",
       entry_type: :block
     }
@@ -17,13 +18,13 @@ RSpec.describe Asciidoctor::Latexmath::Cache::CacheKey do
 
   it "defines the expected field order" do
     expect(described_class::FIELDS_ORDER)
-      .to eq(%i[ext_version content_hash format preamble_hash ppi entry_type])
+      .to eq(%i[ext_version content_hash format preamble_hash fontsize_hash ppi entry_type])
   end
 
   it "computes digest as SHA256 joined by newlines" do
     key = described_class.new(**inputs)
 
-    expected = Digest::SHA256.hexdigest(%w[0.0.1 abc123 svg def456 - block].join("\n"))
+    expected = Digest::SHA256.hexdigest(%w[0.0.1 abc123 svg def456 font789 - block].join("\n"))
     expect(key.digest).to eq(expected)
   end
 
@@ -39,6 +40,13 @@ RSpec.describe Asciidoctor::Latexmath::Cache::CacheKey do
     key_b = described_class.new(**inputs)
 
     expect(key_a.digest).to eq(key_b.digest)
+  end
+
+  it "changes digest when fontsize hash changes" do
+    key_a = described_class.new(**inputs)
+    key_b = described_class.new(**inputs.merge(fontsize_hash: "other"))
+
+    expect(key_a.digest).not_to eq(key_b.digest)
   end
 end
 

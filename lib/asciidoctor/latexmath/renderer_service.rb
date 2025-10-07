@@ -290,6 +290,7 @@ module Asciidoctor
             format: request.format,
             content_hash: request.content_hash,
             preamble_hash: request.preamble_hash,
+            fontsize: request.fontsize,
             engine: request.engine,
             ppi: request.ppi,
             entry_type: expression.entry_type,
@@ -390,8 +391,14 @@ module Asciidoctor
         user_preamble = request.preamble.to_s
         preamble_sections << user_preamble unless user_preamble.strip.empty?
         combined_preamble = preamble_sections.join("\n")
+
+        options = ["preview", "border=2pt"]
+        fontsize = request.fontsize.to_s.strip
+        options << fontsize unless fontsize.empty?
+        documentclass_line = "\\documentclass[#{options.join(",")}]{standalone}"
+
         <<~LATEX
-          \\documentclass[preview,border=2pt]{standalone}
+          #{documentclass_line}
           #{combined_preamble}
           \\begin{document}
           #{body}
@@ -531,6 +538,7 @@ module Asciidoctor
           content_hash: request.content_hash,
           format: request.format,
           preamble_hash: request.preamble_hash,
+          fontsize_hash: request.fontsize_hash,
           ppi: request.ppi || "-",
           entry_type: expression.entry_type
         )
@@ -542,6 +550,7 @@ module Asciidoctor
           format: request.format,
           content_hash: request.content_hash,
           preamble_hash: request.preamble_hash,
+          fontsize_hash: request.fontsize_hash,
           entry_type: expression.entry_type
         }
       end

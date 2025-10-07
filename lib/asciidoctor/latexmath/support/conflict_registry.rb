@@ -38,6 +38,7 @@ module Asciidoctor
             format: (details[:format] || "unknown").to_s,
             content_hash: (details[:content_hash] || "").to_s,
             preamble_hash: (details[:preamble_hash] || "").to_s,
+            fontsize_hash: (details[:fontsize_hash] || "").to_s,
             entry_type: (details[:entry_type] || "unknown").to_s
           }
         end
@@ -57,6 +58,7 @@ module Asciidoctor
           parts << "format=#{details[:format]}"
           parts << "content=#{truncate(details[:content_hash])}"
           parts << "preamble=#{truncate(details[:preamble_hash])}"
+          parts << "fontsize=#{truncate(details[:fontsize_hash])}"
           parts << "entry=#{details[:entry_type]}"
           parts.join(" ")
         end

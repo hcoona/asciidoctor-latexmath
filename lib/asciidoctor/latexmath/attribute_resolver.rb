@@ -56,11 +56,13 @@ module Asciidoctor
         cachedir = infer_cachedir(normalized) unless nocache
         artifacts_dir = infer_artifacts_dir(normalized, keep_artifacts, cachedir)
         preamble = infer_preamble(normalized)
+        fontsize = infer_fontsize(normalized)
         on_error_policy = infer_on_error(normalized)
         tool_overrides = infer_tool_overrides(normalized)
 
         normalized_content = normalize_text(expression.content.to_s)
         normalized_preamble = normalize_text(preamble)
+        normalized_fontsize = normalize_text(fontsize)
 
         target_basename = determine_target_basename(normalized)
 
@@ -69,6 +71,7 @@ module Asciidoctor
           format: format,
           engine: engine,
           preamble: preamble,
+          fontsize: fontsize,
           ppi: ppi,
           timeout: timeout,
           keep_artifacts: keep_artifacts,
@@ -77,7 +80,8 @@ module Asciidoctor
           artifacts_dir: artifacts_dir,
           tool_overrides: tool_overrides,
           content_hash: Digest::SHA256.hexdigest(normalized_content),
-          preamble_hash: Digest::SHA256.hexdigest(normalized_preamble)
+          preamble_hash: Digest::SHA256.hexdigest(normalized_preamble),
+          fontsize_hash: Digest::SHA256.hexdigest(normalized_fontsize)
         )
 
         ResolvedAttributes.new(
@@ -142,6 +146,21 @@ module Asciidoctor
         return override.to_s if override
 
         (document.attr("latexmath-preamble") || "").to_s
+      end
+
+      def infer_fontsize(attrs)
+        raw_value, subject = fetch_attribute_value(attrs, "fontsize", "latexmath-fontsize")
+        effective_value = value_or_default(raw_value, "12pt")
+        value = effective_value.to_s.strip
+        value = "12pt" if value.empty?
+
+        unless valid_fontsize?(value)
+          raise_unsupported_attribute(subject, raw_value || value,
+            supported: "values ending with 'pt' (e.g., 10pt, 12pt)",
+            hint: "set #{subject} to a positive value ending with 'pt'")
+        end
+
+        value
       end
 
       def infer_ppi(attrs, format)
@@ -429,6 +448,17 @@ module Asciidoctor
         return raw_value if raw_value.nil?
 
         raw_value.respond_to?(:strip) ? raw_value.strip : raw_value
+      end
+
+      def valid_fontsize?(value)
+        /
+          \A
+          (?:
+            \d+(?:\.\d+)?
+          )
+          pt
+          \z
+        /x.match?(value)
       end
 
       def set_internal_document_attr(name, value)

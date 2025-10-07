@@ -8,14 +8,15 @@ module Asciidoctor
   module Latexmath
     module Cache
       class CacheEntry
-        attr_reader :final_path, :format, :content_hash, :preamble_hash, :engine,
+        attr_reader :final_path, :format, :content_hash, :preamble_hash, :fontsize, :engine,
           :ppi, :entry_type, :created_at, :checksum, :size_bytes, :tool_presence
 
-        def initialize(final_path:, format:, content_hash:, preamble_hash:, engine:, ppi:, entry_type:, created_at:, checksum:, size_bytes:, tool_presence: {})
+        def initialize(final_path:, format:, content_hash:, preamble_hash:, fontsize:, engine:, ppi:, entry_type:, created_at:, checksum:, size_bytes:, tool_presence: {})
           @final_path = final_path
           @format = format
           @content_hash = content_hash
           @preamble_hash = preamble_hash
+          @fontsize = fontsize
           @engine = engine
           @ppi = ppi
           @entry_type = entry_type

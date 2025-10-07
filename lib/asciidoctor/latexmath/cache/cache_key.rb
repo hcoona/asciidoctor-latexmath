@@ -10,15 +10,16 @@ module Asciidoctor
   module Latexmath
     module Cache
       class CacheKey
-        FIELDS_ORDER = %i[ext_version content_hash format preamble_hash ppi entry_type].freeze
+        FIELDS_ORDER = %i[ext_version content_hash format preamble_hash fontsize_hash ppi entry_type].freeze
 
         attr_reader(*FIELDS_ORDER)
 
-        def initialize(ext_version:, content_hash:, format:, preamble_hash:, ppi:, entry_type:)
+        def initialize(ext_version:, content_hash:, format:, preamble_hash:, fontsize_hash:, ppi:, entry_type:)
           @ext_version = ext_version
           @content_hash = content_hash
           @format = format
           @preamble_hash = preamble_hash
+          @fontsize_hash = fontsize_hash || "-"
           @ppi = ppi || "-"
           @entry_type = entry_type
         end

@@ -18,6 +18,7 @@ RSpec.describe Asciidoctor::Latexmath::Cache::DiskCache do
       format: :svg,
       content_hash: "content-hash",
       preamble_hash: "preamble-hash",
+      fontsize: "12pt",
       engine: "pdflatex",
       ppi: nil,
       entry_type: :block,
@@ -48,6 +49,7 @@ RSpec.describe Asciidoctor::Latexmath::Cache::DiskCache do
     expect(metadata.fetch("key")).to eq(digest)
     expect(metadata.fetch("checksum")).to eq("sha256:#{checksum}")
     expect(metadata.fetch("format")).to eq("svg")
+    expect(metadata.fetch("fontsize")).to eq("12pt")
   end
 
   it "treats checksum mismatch as cache miss" do
