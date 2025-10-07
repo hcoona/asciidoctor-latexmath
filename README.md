@@ -19,6 +19,7 @@ Offline `latexmath` rendering for Asciidoctor documents powered by your local La
   - [Quick Start](#quick-start)
   - [Document Attributes](#document-attributes)
     - [Document-level configuration](#document-level-configuration)
+      - [Font size control](#font-size-control)
     - [Element attributes \& options](#element-attributes--options)
   - [Caching](#caching)
   - [Why asciidoctor-latexmath?](#why-asciidoctor-latexmath)
@@ -161,7 +162,7 @@ The extension replaces both expressions with rendered images that match the form
 | `latexmath-ppi` | `-a latexmath-ppi=300` | Pixels-per-inch for PNG renders. Ignored for SVG/PDF. | Integer 72–600 | `300` |
 | `latexmath-timeout` | `-a latexmath-timeout=120` | Maximum wall-clock time (seconds) each expression may consume before the renderer aborts and raises/places a placeholder. | Positive integer | `120` |
 | `latexmath-cache` | `-a latexmath-cache=false` | Toggle the on-disk cache. `false` forces regeneration without persisting results. | `true`, `false` | `true` |
-| `latexmath-cachedir` | `-a latexmath-cachedir=build/.cache/latexmath` | Directory that stores cached artifacts and metadata (resolved from `outdir`). | Path | `<outdir>/.asciidoctor/latexmath` |
+| `latexmath-cachedir` | `-a latexmath-cachedir=build/.cache/latexmath` | Cache location precedence: element `cachedir=` → `:latexmath-cachedir:` → `<outdir>/<imagesdir>` (when present) → `<outdir>/.asciidoctor/latexmath`. | Path | `<outdir>/.asciidoctor/latexmath` |
 | `latexmath-keep-artifacts` | `-a latexmath-keep-artifacts=true` | Retain intermediate `.tex`, `.log`, and PDF files for debugging. | `true`, `false` | `false` |
 | `latexmath-artifacts-dir` | `-a latexmath-artifacts-dir=build/latexmath-artifacts` | Destination for kept artifacts when `latexmath-keep-artifacts` is enabled. | Path | `<cachedir>/artifacts` |
 | `pdflatex` / `latexmath-pdflatex` | `-a pdflatex=tectonic` | Document-wide LaTeX engine command. Elements can override with `pdflatex=`. | `pdflatex`, `xelatex`, `lualatex`, `tectonic`, or absolute path | `pdflatex` |
@@ -172,6 +173,19 @@ The extension replaces both expressions with rendered images that match the form
 | `latexmath-on-error` | `-a latexmath-on-error=abort` | Rendering failure policy. `log` inserts an HTML placeholder, `abort` stops the build. | `log`, `abort` | `log` |
 
 > Deprecated alias: `latexmath-cache-dir` / `cache-dir` is still accepted (emits a one-time INFO log) but you should prefer `latexmath-cachedir` / `cachedir`.
+
+#### Font size control
+
+The renderer always emits `\documentclass[preview,border=2pt,<size>]{standalone}`. The document attribute `:latexmath-fontsize:` sets the default size (12pt); blocks and inline macros can override it with `fontsize=` while still participating in caching. Values must end with `pt`—otherwise the extension raises `Asciidoctor::Latexmath::UnsupportedValueError` with an actionable hint.
+
+```adoc
+:latexmath-fontsize: 10pt
+
+[latexmath, fontsize=18pt]
++++
+\int_a^b f(x)\,dx
++++
+```
 
 ### Element attributes & options
 
@@ -206,7 +220,7 @@ All generated images respect Asciidoctor's standard image directory rules. Use `
 
 The renderer persists every successful compilation so repeated conversions can reuse the existing SVG/PNG/PDF payloads without invoking your LaTeX toolchain again. Cache entries hash the following ordered fields with SHA256: extension version, normalized content hash, output format, preamble hash, font-size hash, PPI (PNG only, otherwise `-`), and entry type (`block` | `inline`). Delimiter changes, engine switches, or tool swaps do **not** affect the cache key (FR-011 / P5), so switching `pdflatex` → `xelatex` with other factors constant reuses the same cache entry. Inline rendering via `-a latexmath-inline` reuses the cached inline markup; enabling `-a data-uri` does not invalidate cached images.
 
-By default, cache files live under `<outdir>/.asciidoctor/latexmath`. Override this location with `-a latexmath-cache-dir=path/to/cache` or disable caching altogether with `-a latexmath-cache=false` when you need a clean rebuild. Removing the cache directory forces the next run to regenerate every formula.
+By default, cache files live under `<outdir>/.asciidoctor/latexmath`. Override this location with `-a latexmath-cachedir=path/to/cache` (legacy `-a latexmath-cache-dir=...` still works but logs a deprecation message) or disable caching altogether with `-a latexmath-cache=false` when you need a clean rebuild. Removing the cache directory forces the next run to regenerate every formula.
 
 ## Why asciidoctor-latexmath?
 
