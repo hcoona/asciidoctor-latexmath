@@ -3,23 +3,30 @@
 require "asciidoctor-latexmath"
 require "asciidoctor/latexmath/command_runner"
 
-class EngineCapturingRunner
+class EngineCapturingRunner < SpecSupport::FakeCommandRunner
   attr_reader :commands
 
   def initialize(result: Asciidoctor::Latexmath::CommandRunner::Result.new(stdout: "", stderr: "", exit_status: 0, duration: 0.01), fail: false)
+    super()
     @commands = []
     @result = result
     @fail = fail
   end
 
-  def run(command, **_kwargs)
+  def run(command, **kwargs)
     @commands << command
     if @fail
       raise Asciidoctor::Latexmath::StageFailureError, "simulated failure"
     end
 
+    simulate_command(command, kwargs.fetch(:chdir, Dir.pwd))
     @result
   end
+end
+
+def engine_command?(value)
+  name = File.basename(value.to_s)
+  name.match?(/(pdf|xe|lua)latex|tectonic/)
 end
 
 RSpec.describe "Engine precedence and normalization" do
@@ -66,23 +73,24 @@ RSpec.describe "Engine precedence and normalization" do
       end
     end
 
-    expect(runner.commands.size).to eq(3)
+    engine_commands = runner.commands.select { |command| engine_command?(command.first) }
+    expect(engine_commands.size).to eq(3)
 
-    doc_scoped = runner.commands[0]
+    doc_scoped = engine_commands[0]
     expect(doc_scoped.first).to eq("xelatex")
     expect(doc_scoped).to include("--synctex=1")
     expect(doc_scoped).to include("-interaction=nonstopmode")
     expect(doc_scoped).to include("-file-line-error")
 
-    element_scoped = runner.commands[1]
+    element_scoped = engine_commands[1]
     expect(element_scoped.first).to eq("xelatex")
     expect(element_scoped).to include("--custom")
 
-    global_scoped = runner.commands[2]
+    global_scoped = engine_commands[2]
     expect(global_scoped.first).to eq("lualatex")
     expect(global_scoped).to include("--global")
 
-    default_offset = runner.commands.size
+    default_offset = engine_commands.size
 
     within_tmpdir do |dir|
       Dir.chdir(dir) do
@@ -97,8 +105,9 @@ RSpec.describe "Engine precedence and normalization" do
       end
     end
 
-    expect(runner.commands.size).to eq(default_offset + 1)
-    default_scoped = runner.commands.last
+    engine_commands = runner.commands.select { |command| engine_command?(command.first) }
+    expect(engine_commands.size).to eq(default_offset + 1)
+    default_scoped = engine_commands.last
     expect(default_scoped.first).to eq("pdflatex")
     expect(default_scoped).to include("-interaction=nonstopmode")
     expect(default_scoped).to include("-file-line-error")

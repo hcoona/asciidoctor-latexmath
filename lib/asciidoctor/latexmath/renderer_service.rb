@@ -43,6 +43,11 @@ module Asciidoctor
       AUTO_BASENAME_LENGTHS = [16, 32, 64].freeze
       DEFAULT_BASENAME_PREFIX = "lm-"
       LARGE_FORMULA_THRESHOLD = 3000
+      DEFAULT_LATEX_PREAMBLE = <<~LATEX
+        \\usepackage{amsmath}
+        \\usepackage{amssymb}
+        \\usepackage{amsfonts}
+      LATEX
 
       TargetPaths = Struct.new(
         :basename,
@@ -380,14 +385,52 @@ module Asciidoctor
       end
 
       def build_latex_document(request)
-        body = request.expression.content.to_s.strip
+        body = wrap_math_expression(request.expression)
+        preamble_sections = [DEFAULT_LATEX_PREAMBLE]
+        user_preamble = request.preamble.to_s
+        preamble_sections << user_preamble unless user_preamble.strip.empty?
+        combined_preamble = preamble_sections.join("\n")
         <<~LATEX
-          \\documentclass{article}
-          #{request.preamble}
+          \\documentclass[preview,border=2pt]{standalone}
+          #{combined_preamble}
           \\begin{document}
           #{body}
           \\end{document}
         LATEX
+      end
+
+      def wrap_math_expression(expression)
+        content = expression.content.to_s.strip
+        return content if content.empty?
+
+        if expression.entry_type == :block
+          wrap_display_math(content)
+        else
+          wrap_inline_math(content)
+        end
+      end
+
+      DISPLAY_MATH_PATTERNS = [
+        /\A\\\[.*\\\]\z/m,
+        /\A\$\$.*\$\$\z/m,
+        /\A\\begin\{[a-zA-Z*]+\}/m
+      ].freeze
+
+      INLINE_MATH_PATTERNS = [
+        /\A\\\(.*\\\)\z/m,
+        /\A\$.*\$\z/m
+      ].freeze
+
+      def wrap_display_math(content)
+        return content if DISPLAY_MATH_PATTERNS.any? { |pattern| pattern.match?(content) }
+
+        "\\[\n#{content}\n\\]"
+      end
+
+      def wrap_inline_math(content)
+        return content if (INLINE_MATH_PATTERNS + DISPLAY_MATH_PATTERNS).any? { |pattern| pattern.match?(content) }
+
+        "\\(#{content}\\)"
       end
 
       def build_pipeline

@@ -35,13 +35,16 @@ module Asciidoctor
             message = <<~MSG.strip
               pdflatex exited with status #{result.exit_status}
               command: #{command.join(" ")}
+              stdout: #{truncate_output(result.stdout)}
               stderr: #{truncate_output(result.stderr)}
             MSG
             raise StageFailureError, message
           end
 
-          pdf_path = pdf_path_for(request, context)
-          File.write(pdf_path, build_placeholder_pdf(request))
+          pdf_path = pdf_path_for(context)
+          unless File.exist?(pdf_path)
+            raise StageFailureError, "pdflatex did not produce expected output: #{pdf_path}"
+          end
 
           pdf_path
         rescue RenderTimeoutError
@@ -52,12 +55,8 @@ module Asciidoctor
 
         private
 
-        def pdf_path_for(request, context)
-          File.join(context.fetch(:tmp_dir), "#{request.content_hash}.pdf")
-        end
-
-        def build_placeholder_pdf(request)
-          "PDF placeholder for #{request.expression.content} using #{request.engine}"
+        def pdf_path_for(context)
+          File.join(context.fetch(:tmp_dir), "#{context.fetch(:artifact_basename)}.pdf")
         end
 
         def prepare_tex_source(artifact_path, tmp_dir, basename)
@@ -72,18 +71,27 @@ module Asciidoctor
           raise StageFailureError, "pdflatex executable not specified" if tokens.empty?
 
           executable = tokens.shift
+          engine = identify_engine(executable)
           sanitized_flags = tokens.reject { |flag| disallowed_flag?(flag) }
 
-          DEFAULT_FLAGS.each do |flag|
-            sanitized_flags.reject! { |existing| equivalent_flag?(existing, flag) }
-            sanitized_flags << flag
+          if %i[pdflatex xelatex lualatex].include?(engine)
+            DEFAULT_FLAGS.each do |flag|
+              sanitized_flags.reject! { |existing| equivalent_flag?(existing, flag) }
+              sanitized_flags << flag
+            end
+
+            sanitized_flags.reject! { |existing| equivalent_flag?(existing, SECURE_FLAG) }
+            sanitized_flags << SECURE_FLAG
+
+            sanitized_flags = remove_output_directory_flags(sanitized_flags)
+            sanitized_flags << "-output-directory" << tmp_dir
+          elsif engine == :tectonic
+            sanitized_flags = remove_outdir_flags(sanitized_flags)
+            sanitized_flags << "--outdir" << tmp_dir
+          else
+            sanitized_flags = remove_output_directory_flags(sanitized_flags)
+            sanitized_flags << "-output-directory" << tmp_dir
           end
-
-          sanitized_flags.reject! { |existing| equivalent_flag?(existing, SECURE_FLAG) }
-          sanitized_flags << SECURE_FLAG
-
-          sanitized_flags = remove_output_directory_flags(sanitized_flags)
-          sanitized_flags << "-output-directory" << tmp_dir
 
           [executable, *sanitized_flags, tex_path]
         end
@@ -93,6 +101,10 @@ module Asciidoctor
             "openout_any" => "p",
             "shell_escape" => "f"
           }
+        end
+
+        def identify_engine(executable)
+          File.basename(executable.to_s).downcase.gsub(/[^a-z0-9]+/, "_").to_sym
         end
 
         def disallowed_flag?(flag)
@@ -118,6 +130,27 @@ module Asciidoctor
 
             base = flag.split("=").first
             if base == "-output-directory"
+              skip_next = !flag.include?("=")
+              next
+            end
+
+            result << flag
+          end
+
+          result
+        end
+
+        def remove_outdir_flags(flags)
+          result = []
+          skip_next = false
+
+          flags.each do |flag|
+            if skip_next
+              skip_next = false
+              next
+            end
+
+            if flag.start_with?("--outdir")
               skip_next = !flag.include?("=")
               next
             end

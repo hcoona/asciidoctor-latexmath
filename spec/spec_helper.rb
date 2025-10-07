@@ -6,6 +6,7 @@ require "aruba/rspec"
 require "fileutils"
 require "tmpdir"
 require "pathname"
+require "asciidoctor/latexmath/command_runner"
 
 module SpecSupport
   module TmpDir
@@ -20,8 +21,13 @@ end
 require_relative "support/document_helpers"
 require_relative "support/tool_stub_helpers"
 require_relative "support/capturing_logger"
+require_relative "support/fake_command_runner"
 
 RSpec.configure do |config|
+  config.before(:suite) do
+    Asciidoctor::Latexmath::CommandRunner.backend = SpecSupport::FakeCommandRunner.new
+  end
+
   config.disable_monkey_patching!
 
   config.expect_with :rspec do |expectations|

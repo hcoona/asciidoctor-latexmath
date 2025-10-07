@@ -11,7 +11,7 @@ module Asciidoctor
         attr_writer :backend
 
         def backend
-          @backend ||= NullRunner.new
+          @backend ||= SystemRunner.new
         end
 
         def run(command, timeout:, chdir:, env: {}, stdin: nil)
@@ -68,6 +68,8 @@ module Asciidoctor
           duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
 
           Result.new(stdout: stdout_output, stderr: stderr_output, exit_status: exit_status, duration: duration)
+        rescue Errno::ENOENT => error
+          raise StageFailureError, "Executable not found: #{error.message.split.last}"
         ensure
           stdout_read&.close unless stdout_read&.closed?
           stderr_read&.close unless stderr_read&.closed?
