@@ -9,6 +9,7 @@ require "pathname"
 
 require_relative "errors"
 require_relative "render_request"
+require_relative "path_utils"
 
 module Asciidoctor
   module Latexmath
@@ -192,8 +193,7 @@ module Asciidoctor
         return expand_path(explicit) if explicit
         return expand_path(doc_level) if doc_level
 
-        base_dir = resolve_outdir
-        File.expand_path(File.join(base_dir, ".asciidoctor", "latexmath"))
+        File.join(resolve_outdir, ".asciidoctor", "latexmath")
       end
 
       def infer_artifacts_dir(attrs, keep_artifacts, cachedir)
@@ -330,14 +330,12 @@ module Asciidoctor
       end
 
       def expand_path(path)
-        return nil unless path
-
-        base_dir = resolve_outdir
-        Pathname(path).absolute? ? path : File.expand_path(path, base_dir)
+        PathUtils.expand_path(path, resolve_outdir)
       end
 
       def resolve_outdir
-        document&.attr("outdir") || document&.options&.[](:to_dir) || document&.base_dir || document&.attr("docdir") || Dir.pwd
+        base_dir = document&.attr("outdir") || document&.options&.[](:to_dir) || document&.base_dir || document&.attr("docdir") || Dir.pwd
+        PathUtils.expand_path(base_dir, Dir.pwd)
       end
 
       def canonical_cachedir_attr

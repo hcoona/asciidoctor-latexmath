@@ -19,6 +19,7 @@ require_relative "cache/cache_key"
 require_relative "cache/cache_entry"
 require_relative "cache/disk_cache"
 require_relative "support/conflict_registry"
+require_relative "path_utils"
 require_relative "rendering/pipeline"
 require_relative "rendering/pdflatex_renderer"
 require_relative "rendering/pdf_to_svg_renderer"
@@ -41,6 +42,7 @@ module Asciidoctor
 
       AUTO_BASENAME_LENGTHS = [16, 32, 64].freeze
       DEFAULT_BASENAME_PREFIX = "lm-"
+      LARGE_FORMULA_THRESHOLD = 3000
 
       TargetPaths = Struct.new(
         :basename,
@@ -123,7 +125,7 @@ module Asciidoctor
         end
 
         final_path = if resolved.nocache
-          render_without_cache(document_obj, request, paths, resolved.raw_attributes)
+          render_without_cache(document_obj, request, paths, resolved.raw_attributes, expression)
         else
           render_with_cache(document_obj, request, expression, paths, resolved, cache_key)
         end
@@ -178,9 +180,10 @@ module Asciidoctor
       def determine_target_paths(document_obj, resolved, request)
         extension = extension_for(request.format)
         relative_name = compute_relative_target(document_obj, resolved.target_basename, request.content_hash, extension)
+        relative_name = PathUtils.normalize_separators(relative_name)
 
         output_root = resolve_output_root(document_obj)
-        final_path = File.expand_path(relative_name, output_root)
+        final_path = PathUtils.expand_path(relative_name, output_root)
         public_target = build_public_target(document_obj, relative_name)
 
         TargetPaths.new(
@@ -193,16 +196,20 @@ module Asciidoctor
       end
 
       def compute_relative_target(document_obj, target, content_hash, extension)
-        return append_or_adjust_extension(target, extension) if target && !target.to_s.empty?
+        normalized_target = if target && !target.to_s.empty?
+          PathUtils.normalize_separators(target)
+        end
+
+        return append_or_adjust_extension(normalized_target, extension) if normalized_target && !normalized_target.empty?
 
         "#{default_basename(document_obj, content_hash)}.#{extension}"
       end
 
       def append_or_adjust_extension(target, extension)
-        normalized = target.to_s
-        dirname = File.dirname(normalized)
-        dirname = "." if dirname == normalized # when no directory element present
-        filename = File.basename(normalized)
+        normalized = PathUtils.normalize_separators(target.to_s)
+        pathname = Pathname.new(normalized)
+        dirname = pathname.dirname.to_s
+        filename = pathname.basename.to_s
 
         extname = File.extname(filename)
         base = extname.empty? ? filename : filename[0...-extname.length]
@@ -217,10 +224,10 @@ module Asciidoctor
             "#{filename}.#{extension}"
           end
 
-        (dirname == ".") ? adjusted : File.join(dirname, adjusted)
+        (dirname == ".") ? adjusted : PathUtils.clean_join(dirname, adjusted)
       end
 
-      def render_without_cache(document_obj, request, paths, raw_attrs)
+      def render_without_cache(document_obj, request, paths, raw_attrs, expression)
         start = monotonic_time
         generated_path = nil
 
@@ -230,8 +237,10 @@ module Asciidoctor
           persist_artifacts(request, artifact_dir, success: true)
         end
 
+        duration_ms = elapsed_ms(start)
         Asciidoctor::Latexmath.record_render_invocation!
-        record_render_duration(document_obj, start)
+        record_render_duration(document_obj, start, duration_ms)
+        maybe_log_large_formula(request, expression, duration_ms)
         paths.final_path
       end
 
@@ -255,8 +264,9 @@ module Asciidoctor
         copy_to_target(artifact_path, paths.final_path, overwrite: !cache_hit || !File.exist?(paths.final_path))
 
         if cache_hit
-          duration = ((monotonic_time - hit_start) * 1000).round
-          record_cache_hit(document_obj, duration)
+          duration_ms = elapsed_ms(hit_start)
+          record_cache_hit(document_obj, duration_ms)
+          maybe_log_large_formula(request, expression, duration_ms)
         end
 
         paths.final_path
@@ -289,8 +299,10 @@ module Asciidoctor
           persist_artifacts(request, artifact_dir, success: true)
         end
 
+        duration_ms = elapsed_ms(start)
         Asciidoctor::Latexmath.record_render_invocation!
-        record_render_duration(document_obj, start)
+        record_render_duration(document_obj, start, duration_ms)
+        maybe_log_large_formula(request, expression, duration_ms)
         stored_path
       end
 
@@ -438,23 +450,36 @@ module Asciidoctor
       end
 
       def resolve_output_root(document_obj)
-        imagesoutdir = document_obj.attr("imagesoutdir")
-        return expand_path(imagesoutdir, document_obj) if imagesoutdir && !imagesoutdir.empty?
+        document_dir = document_obj.base_dir || Dir.pwd
+        document_dir = PathUtils.expand_path(document_dir, Dir.pwd)
 
-        base_dir = document_obj.attr("outdir") || document_obj.options[:to_dir] || document_obj.base_dir || Dir.pwd
+        imagesoutdir = document_obj.attr("imagesoutdir")
+        if imagesoutdir && !imagesoutdir.empty?
+          return PathUtils.expand_path(imagesoutdir, document_dir)
+        end
+
         imagesdir = document_obj.attr("imagesdir")
         if imagesdir && !imagesdir.empty?
-          File.expand_path(imagesdir, base_dir)
-        else
-          base_dir
+          return PathUtils.expand_path(imagesdir, document_dir)
         end
+
+        outdir_attr = document_obj.attr("outdir") || document_obj.options[:to_dir]
+        if outdir_attr && !outdir_attr.empty?
+          return PathUtils.expand_path(outdir_attr, document_dir)
+        end
+
+        document_dir
       end
 
       def build_public_target(document_obj, relative_name)
-        imagesdir = document_obj.attr("imagesdir")
-        return relative_name if imagesdir.nil? || imagesdir.empty?
+        normalized = PathUtils.normalize_separators(relative_name)
+        return normalized if PathUtils.absolute_path?(normalized)
 
-        Pathname(relative_name).absolute? ? relative_name : File.join(imagesdir, relative_name)
+        imagesdir = document_obj.attr("imagesdir")
+        imagesdir = PathUtils.normalize_separators(imagesdir) if imagesdir
+        return normalized if imagesdir.nil? || imagesdir.empty?
+
+        PathUtils.clean_join(imagesdir, normalized)
       end
 
       def build_cache_key(request, expression)
@@ -480,7 +505,8 @@ module Asciidoctor
 
       def expand_path(path, document_obj)
         base_dir = document_obj.attr("outdir") || document_obj.options[:to_dir] || document_obj.base_dir || Dir.pwd
-        Pathname(path).absolute? ? path : File.expand_path(path, base_dir)
+        base_dir = PathUtils.expand_path(base_dir, Dir.pwd)
+        PathUtils.expand_path(path, base_dir)
       end
 
       def default_basename(document_obj, content_hash)
@@ -580,13 +606,13 @@ module Asciidoctor
           default_document_location(parent.document)
       end
 
-      def record_render_duration(document_obj, start_time)
-        duration = ((monotonic_time - start_time) * 1000).round
+      def record_render_duration(document_obj, start_time, duration_ms = nil)
+        duration = duration_ms || elapsed_ms(start_time)
         stats_collector(document_obj).record_render(duration)
       end
 
-      def record_cache_hit(document_obj, duration)
-        stats_collector(document_obj).record_hit(duration)
+      def record_cache_hit(document_obj, duration_ms)
+        stats_collector(document_obj).record_hit(duration_ms)
       end
 
       def stats_collector(document_obj)
@@ -599,6 +625,25 @@ module Asciidoctor
 
       def monotonic_time
         Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      end
+
+      def elapsed_ms(start_time)
+        return 0 unless start_time
+
+        ((monotonic_time - start_time) * 1000).round
+      end
+
+      def maybe_log_large_formula(request, expression, duration_ms)
+        return unless logger&.respond_to?(:debug)
+        return unless request && expression
+
+        content = expression.content.to_s
+        bytes = content.dup.force_encoding(Encoding::UTF_8).bytesize
+        return unless bytes > LARGE_FORMULA_THRESHOLD
+
+        digest = request.content_hash.to_s
+        key_prefix = digest[0, 8]
+        logger.debug { "latexmath.timing: key=#{key_prefix} bytes=#{bytes} ms=#{duration_ms.to_i}" }
       end
 
       def flush_statistics
