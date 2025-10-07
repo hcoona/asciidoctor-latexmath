@@ -234,10 +234,8 @@ module Asciidoctor
 
       def render_without_cache(document_obj, request, paths, raw_attrs, expression)
         start = monotonic_time
-        generated_path = nil
 
         generate_artifact(request, paths.basename, raw_attrs) do |output_path, artifact_dir, _tool_presence|
-          generated_path = output_path
           copy_to_target(output_path, paths.final_path, overwrite: true)
           persist_artifacts(request, artifact_dir, success: true)
         end
@@ -482,10 +480,19 @@ module Asciidoctor
           stdout: "",
           stderr: error.message,
           source: expression.content,
-          latex_source: expression.content
+          latex_source: safe_latex_document_for(request)
         )
 
         Result.new(type: :placeholder, placeholder_html: placeholder_html, format: request.format)
+      end
+
+      def safe_latex_document_for(request)
+        build_latex_document(request)
+      rescue => document_error
+        logger&.warn do
+          "latexmath failed to reconstruct LaTeX document for placeholder: #{document_error.message}"
+        end
+        request&.expression&.content || ""
       end
 
       def copy_to_target(source, destination, overwrite: true)

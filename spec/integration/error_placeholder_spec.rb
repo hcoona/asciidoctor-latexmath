@@ -19,6 +19,7 @@ RSpec.describe "Error placeholder" do
 
         expect(html).to include('class="highlight latexmath-error"')
         expect(html).to include("Source (AsciiDoc)")
+        expect(html).to include("Source (LaTeX): \\documentclass[preview")
       end
     end
   end
@@ -38,6 +39,7 @@ RSpec.describe "Error placeholder" do
 
         expect(html).to include('class="highlight latexmath-error"')
         expect(html).to include("Command:")
+        expect(html).to include("Source (LaTeX): \\documentclass[preview")
       end
     end
   end

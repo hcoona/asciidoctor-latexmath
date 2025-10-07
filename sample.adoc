@@ -85,3 +85,8 @@ l| This is an *inline* equation: latexmath:[a^2+b^2=c^2].
   v & = \frac{dx}{dt}
 \end{align*}
 ++++
+
+[latexmath,preamble=\usepackage[libertine]{newtxmath} \expandafter\let\csname not=\endcsname\relax \expandafter\let\csname not<\endcsname\relax \expandafter\let\csname not>\endcsname\relax \usepackage{unicode-math} \setmathfont{LibertinusMath-Regular.otf}]
+++++
+F f \Colon F a \to F b
+++++

@@ -45,9 +45,9 @@ def bundler_available?
 end
 
 SAMPLE_RENDER_CMD = if bundler_available?
-  "bundle exec asciidoctor -r ./lib/asciidoctor-latexmath.rb sample.adoc"
+  "bundle exec asciidoctor -r ./lib/asciidoctor-latexmath.rb -a pdflatex=xelatex sample.adoc"
 else
-  "asciidoctor -r ./lib/asciidoctor-latexmath.rb sample.adoc"
+  "asciidoctor -r ./lib/asciidoctor-latexmath.rb -a pdflatex=xelatex sample.adoc"
 end
 
 desc "Render sample.adoc with the local extension"

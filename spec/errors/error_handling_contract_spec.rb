@@ -45,17 +45,27 @@ end
 
 RSpec.describe Asciidoctor::Latexmath::ErrorHandling::Placeholder do
   it "renders a multi-line placeholder string" do
+    latex_source = <<~LATEX
+      \\documentclass{standalone}
+      \\begin{document}
+      \\[
+      x
+      \\]
+      \\end{document}
+    LATEX
+
     html = described_class.render(
       message: "Missing tool",
       command: "pdflatex foo.tex",
       stdout: "",
       stderr: "error",
       source: "latexmath:[x]",
-      latex_source: "\\[x\\]"
+      latex_source: latex_source
     )
 
     # No changes needed, lines are already correct
     expect(html).to include("highlight latexmath-error")
     expect(html.lines.first.strip).to eq(%(<pre class="highlight latexmath-error" role="note" data-latex-error="1">))
+    expect(html).to include("Source (LaTeX): \\documentclass{standalone}")
   end
 end
